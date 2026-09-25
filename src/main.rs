@@ -1,4 +1,4 @@
-mod deepseek;
+use ferris_agent::deepseek;
 use anyhow::Result;
 
 #[tokio::main]
