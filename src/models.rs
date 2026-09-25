@@ -1,10 +1,22 @@
-use std::env;
-use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE, AUTHORIZATION};
 use serde::{Deserialize, Serialize};
 
-use crate::enums::{Model, Role, ToolType, ThinkingEffort, ResponseFormatKind, Enable};
-
 // Request structs
+#[derive(Debug, Serialize, Deserialize)]
+pub enum Model {
+    #[serde(rename = "deepseek-flash")]
+    Flash,
+    #[serde(rename = "deepseek-v4-pro")]
+    Pro,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Role {
+    System,
+    User,
+    Assistant,
+    Tool,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Message {
@@ -13,9 +25,33 @@ pub struct Message {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Enable {
+    Enabled,
+    Disabled,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Thinking {
     #[serde(rename = "type")]
     kind: Enable,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ThinkingEffort {
+    None,
+    Low,
+    High,
+    Max,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ResponseFormatKind {
+    #[serde(rename = "json_object")]
+    Json,
+    Text,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -34,6 +70,12 @@ pub struct ToolFunc {
     description: Option<String>,
     name: String,
     strict: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ToolType {
+    Function,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -103,29 +145,29 @@ pub struct RequestBody {
 // Response structs
 
 #[derive(Debug, Deserialize)]
-struct ChatResponse {
-    id: String,
-    object: String,
-    created: u64,
-    model: String,
-    choices: Vec<ChatChoice>,
-    usage: Option<ChatUsage>,
+pub struct ChatResponse {
+    pub id: String,
+    pub object: String,
+    pub created: u64,
+    pub model: String,
+    pub choices: Vec<ChatChoice>,
+    pub usage: Option<ChatUsage>,
 }
 
 #[derive(Debug, Deserialize)]
-struct ChatChoice {
-    index: u32,
-    finish_reason: Option<String>,
-    message: ChatMessage,
+pub struct ChatChoice {
+    pub index: u32,
+    pub finish_reason: Option<String>,
+    pub message: ChatMessage,
 }
 
 #[derive(Debug, Deserialize)]
-struct ChatMessage {
-    role: String,
-    content: String,
+pub struct ChatMessage {
+    pub role: String,
+    pub content: String,
 
     #[serde(default)]
-    reasoning_content: Option<String>,
+    pub reasoning_content: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -133,67 +175,6 @@ pub struct ChatUsage {
     pub prompt_tokens: u32,
     pub completion_tokens: u32,
     pub total_tokens: u32,
-}
-
-pub struct DSAgent {
-    base_url: String,
-    headers: HeaderMap,
-    pub request_body: RequestBody,
-    client: reqwest::Client,
-}
-
-impl DSAgent {
-    pub fn new() -> Self {
-        let key = env::var("DEEP_SEEK_API_KEY").expect("Environment variable 'DEEP_SEEK_API_KEY' is not set");
-        let mut headers = HeaderMap::new();
-        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-        headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", key)).unwrap());
-
-        let request_body = RequestBody::new(
-            Model::Flash,
-            Vec::new(),
-        );
-
-        DSAgent {
-            base_url: String::from("https://api.deepseek.com/chat/completions"),
-            headers,
-            request_body,
-            client: reqwest::Client::new(),
-        }
-    }
-
-    pub async fn query_llm(&self) -> anyhow::Result<String> {
-        let response = self.client.post(&self.base_url)
-            .headers(self.headers.clone())
-            .json(&self.request_body)
-            .send()
-            .await?
-            .error_for_status()?
-            .json::<ChatResponse>()
-            .await?;
-
-        response
-            .choices
-            .first()
-            .map(|choice| choice.message.content.clone())
-            .ok_or_else(|| anyhow::anyhow!("LLM response contained no choices"))
-    }
-
-    pub fn parse_tool_calls(&self, llm_output: &str) -> Vec<String> {
-        // Placeholder for parsing tool calls from the LLM output
-        // In a real implementation, this would analyze the LLM output and extract any tool calls
-        if llm_output.contains("tool_call") {
-            vec!["tool_call_example".to_string()]
-        } else {
-            Vec::new()
-        }
-    }
-
-    pub fn execute_action(&self, action: String) -> String {
-        // Placeholder for executing the action
-        // In a real implementation, this would perform the action and return the result
-        format!("Executed action: {}", action)
-    }
 }
 
 impl RequestBody {
