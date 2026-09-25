@@ -163,18 +163,9 @@ impl DSAgent {
     }
 
     pub async fn query_llm(&self) -> anyhow::Result<String> {
-
-        let request_body = serde_json::json!({
-            "model": self.request_body.model,
-            "messages": self.request_body.messages,
-            "thinking": self.request_body.thinking,
-            "reasoning_effort": self.request_body.reasoning_effort,
-            "stream": self.request_body.stream,
-        });
-
         let response = self.client.post(&self.base_url)
             .headers(self.headers.clone())
-            .json(&request_body)
+            .json(&self.request_body)
             .send()
             .await?
             .error_for_status()?
