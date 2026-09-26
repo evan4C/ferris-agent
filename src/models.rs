@@ -1,7 +1,9 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, ser::SerializeMap};
+use crate::DeepSeekClient;
+use crate::config;
 
-// Request structs
-#[derive(Debug, Serialize, Deserialize)]
+// region: Request structs
+#[derive(Debug, Serialize)]
 pub enum Model {
     #[serde(rename = "deepseek-flash")]
     Flash,
@@ -9,7 +11,7 @@ pub enum Model {
     Pro,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
     System,
@@ -18,26 +20,63 @@ pub enum Role {
     Tool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct Message {
     role: Role,
     content: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Enable {
+impl Message {
+    pub fn system(content: impl Into<String>) -> Self {
+        Self {
+            role: Role::System,
+            content: content.into(),
+        }
+    }
+
+    pub fn user(content: impl Into<String>) -> Self {
+        Self {
+            role: Role::User,
+            content: content.into(),
+        }
+    }
+
+    pub fn assistant(content: impl Into<String>) -> Self {
+        Self {
+            role: Role::Assistant,
+            content: content.into(),
+        }
+    }
+
+    pub fn tool(content: impl Into<String>) -> Self {
+        Self {
+            role: Role::Tool,
+            content: content.into(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum Thinking {
     Enabled,
     Disabled,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Thinking {
-    #[serde(rename = "type")]
-    kind: Enable,
+impl Serialize for Thinking {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(1))?;
+        match self {
+            Thinking::Enabled => map.serialize_entry("type", "enabled")?,
+            Thinking::Disabled => map.serialize_entry("type", "disabled")?,
+        }
+        map.end()
+    }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ThinkingEffort {
     None,
@@ -46,46 +85,54 @@ pub enum ThinkingEffort {
     Max,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ResponseFormatKind {
-    #[serde(rename = "json_object")]
-    Json,
+#[derive(Debug)]
+pub enum ResponseFormat {
+    JsonObject,
     Text,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ResponseFormat {
-    #[serde(rename = "type")]
-    kind: ResponseFormatKind,
-}
+impl Serialize for ResponseFormat {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(1))?;
 
-#[derive(Debug, Serialize, Deserialize)]
+        match self {
+            ResponseFormat::JsonObject => map.serialize_entry("type", "json_object")?,
+            ResponseFormat::Text => map.serialize_entry("type", "text")?,
+        }
+        map.end()
+    }
+}
+        
+
+#[derive(Debug, Serialize)]
 pub struct StreamOptions {
     include_usage: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct ToolFunc {
     description: Option<String>,
     name: String,
     strict: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ToolType {
     Function,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct Tools {
     #[serde(rename = "type")]
     kind: ToolType,
     function: ToolFunc,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum SimpleTC {
     None,
@@ -93,35 +140,41 @@ pub enum SimpleTC {
     Required,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct NamedTC {
     #[serde(rename = "type")]
     kind: ToolType,
     name: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub enum ToolChoice {
     SimpleToolChoice(SimpleTC),
     NamedToolChoice(NamedTC),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RequestBody {
-    messages: Vec<Message>,
-    model: Model,
+#[derive(Debug, Serialize)]
+pub struct ChatBuilder<'a> {
+    // Not part of the API payload; drives `create()`.
+    #[serde(skip)]
+    client: &'a DeepSeekClient,
+
+    pub messages: Vec<Message>,
+    pub model: Model,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     thinking: Option<Thinking>,
     reasoning_effort: ThinkingEffort,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    max_tokens: Option<u32>,
+    pub max_tokens: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    response_format: Option<ResponseFormat>,
-
+    pub response_format: Option<ResponseFormat>,
+    
     #[serde(skip_serializing_if = "Option::is_none")]
-    stream: Option<bool>,
+    pub stream: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    stream_options: Option<StreamOptions>,
+    pub stream_options: Option<StreamOptions>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     temperature: Option<f32>,
@@ -142,8 +195,78 @@ pub struct RequestBody {
     user_id: Option<String>,
 }
 
-// Response structs
+impl<'a> ChatBuilder<'a> {
+    pub fn new(client: &'a DeepSeekClient) -> Self {
+        Self {
+            client,
+            messages: Vec::new(),
+            model: Model::Flash,
+            thinking: None,
+            reasoning_effort: ThinkingEffort::None,
+            max_tokens: None,
+            response_format: None,
+            stream: None,
+            stream_options: None,
+            temperature: None,
+            top_p: None,
+            tools: None,
+            tool_choice: None,
+            logprobs: None,
+            top_logprobs: None,
+            user_id: None,
+        }.system(config::SYSTEM_PROMPT)
+    }
 
+    pub fn model(mut self, model: Model) -> Self {
+        self.model = model;
+        self
+    }
+
+    pub fn system(mut self, content: impl Into<String>) -> Self {
+        self.messages.push(Message::system(content));
+        self
+    }
+    pub fn user(mut self, content: impl Into<String>) -> Self {
+        self.messages.push(Message::user(content));
+        self
+    }
+    pub fn assistant(mut self, content: impl Into<String>) -> Self {
+        self.messages.push(Message::assistant(content));
+        self
+    }
+    pub fn tool(mut self, content: impl Into<String>) -> Self {
+        self.messages.push(Message::tool(content));
+        self
+    }
+
+    pub fn max_tokens(mut self, max_tokens: u32) -> Self {
+        self.max_tokens = Some(max_tokens);
+        self
+    }
+
+    pub fn stream(mut self, enabled: bool) -> Self {
+        self.stream = Some(enabled);
+        self
+    }
+
+    pub fn json_output(mut self) -> Self {
+        self.response_format = Some(ResponseFormat::JsonObject);
+        self
+    }
+
+    pub fn text_output(mut self) -> Self {
+        self.response_format = Some(ResponseFormat::Text);
+        self
+    }
+
+    pub async fn create(self) -> Result<String, crate::error::DeepSeekError> {
+        self.client.query_llm(&self).await
+    }
+}
+
+// endregion: Request structs
+
+// region: Response structs
 #[derive(Debug, Deserialize)]
 pub struct ChatResponse {
     pub id: String,
@@ -176,54 +299,4 @@ pub struct ChatUsage {
     pub completion_tokens: u32,
     pub total_tokens: u32,
 }
-
-impl RequestBody {
-    pub fn new(model: Model, messages: Vec<Message>) -> Self {
-        RequestBody {
-            model,
-            messages,
-            thinking: Some(Thinking { kind: Enable::Disabled }),
-            reasoning_effort: ThinkingEffort::Low,
-            max_tokens: None,
-            response_format: None,
-            stream: None,
-            stream_options: None,
-            temperature: None,
-            top_p: None,
-            tools: None,
-            tool_choice: None,
-            logprobs: None,
-            top_logprobs: None,
-            user_id: None,
-        }
-    }
-
-    pub fn add_system_prompt(&mut self, system_prompt: String) {
-        self.messages.insert(0, Message {
-            role: Role::System,
-            content: system_prompt,
-        });
-    }
-
-    pub fn add_user_message(&mut self, user_message: String) {
-        self.messages.push(Message {
-            role: Role::User,
-            content: user_message,
-        });
-    }
-
-    pub fn add_assistant_message(&mut self, assistant_message: String) {
-        self.messages.push(Message {
-            role: Role::Assistant,
-            content: assistant_message,
-        });
-    }
-    
-    pub fn add_toolcall_message(&mut self, toolcall_message: String) {
-        self.messages.push(Message {
-            role: Role::Tool,
-            content: toolcall_message,
-        });
-    }
-}
-    
+// endregion: Response structs

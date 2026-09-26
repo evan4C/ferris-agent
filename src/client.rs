@@ -1,9 +1,10 @@
 use crate::error::DeepSeekError;
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE, AUTHORIZATION};
 use std::env;
-use crate::models::{RequestBody, ChatResponse};
+use crate::models::*;
 use crate::config::{DEFAULT_BASE_URL};
 
+#[derive(Debug)]
 pub struct DeepSeekClient {
     base_url: String,
     headers: HeaderMap,
@@ -24,7 +25,7 @@ impl DeepSeekClient {
         }
     }
 
-    pub async fn query_llm(&self, request_body: &RequestBody) -> Result<String, DeepSeekError> {
+    pub async fn query_llm(&self, request_body: &ChatBuilder<'_>) -> Result<String, DeepSeekError> {
         let response = self.client.post(&self.base_url)
             .headers(self.headers.clone())
             .json(request_body)
@@ -60,5 +61,9 @@ impl DeepSeekClient {
         // Placeholder for executing the action
         // In a real implementation, this would perform the action and return the result
         format!("Executed action: {}", action)
+    }
+
+    pub fn chat(&self) -> ChatBuilder<'_> {
+        ChatBuilder::new(self)
     }
 }
