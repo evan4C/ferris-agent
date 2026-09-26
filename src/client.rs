@@ -2,6 +2,7 @@ use crate::error::DeepSeekError;
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE, AUTHORIZATION};
 use std::env;
 use crate::models::{RequestBody, ChatResponse};
+use crate::config::{DEFAULT_BASE_URL};
 
 pub struct DeepSeekClient {
     base_url: String,
@@ -17,7 +18,7 @@ impl DeepSeekClient {
         headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", key)).unwrap());
 
         DeepSeekClient {
-            base_url: String::from("https://api.deepseek.com/chat/completions"),
+            base_url: DEFAULT_BASE_URL.into(),
             headers,
             client: reqwest::Client::new(),
         }
