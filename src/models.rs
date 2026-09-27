@@ -214,7 +214,7 @@ impl<'a> ChatBuilder<'a> {
             logprobs: None,
             top_logprobs: None,
             user_id: None,
-        }.system(config::SYSTEM_PROMPT)
+        }.system(config::constants::SYSTEM_PROMPT)
     }
 
     pub fn model(mut self, model: Model) -> Self {

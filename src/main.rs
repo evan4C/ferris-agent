@@ -12,7 +12,7 @@ async fn main() -> Result<()> {
     // the main agent loop
     loop {
         current_step += 1;
-        if current_step > 10 {
+        if current_step > agent.max_retries {
             eprintln!("Maximum steps reached");
             break;
         }

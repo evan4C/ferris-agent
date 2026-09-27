@@ -1,33 +1,29 @@
 use crate::error::DeepSeekError;
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE, AUTHORIZATION};
-use std::env;
 use crate::models::*;
-use crate::config::{DEFAULT_BASE_URL};
+use crate::config::SETTINGS;
 
 #[derive(Debug)]
 pub struct DeepSeekClient {
-    base_url: String,
-    headers: HeaderMap,
+    pub max_retries: u8,
     client: reqwest::Client,
 }
 
 impl DeepSeekClient {
     pub fn new() -> Self {
-        let key = env::var("DEEP_SEEK_API_KEY").expect("Environment variable 'DEEP_SEEK_API_KEY' is not set");
-        let mut headers = HeaderMap::new();
-        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-        headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", key)).unwrap());
-
         DeepSeekClient {
-            base_url: DEFAULT_BASE_URL.into(),
-            headers,
+            max_retries: SETTINGS.deepseek.max_retries,
             client: reqwest::Client::new(),
         }
     }
 
     pub async fn query_llm(&self, request_body: &ChatBuilder<'_>) -> Result<String, DeepSeekError> {
-        let response = self.client.post(&self.base_url)
-            .headers(self.headers.clone())
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+        headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", SETTINGS.deepseek.api_key)).unwrap());
+
+        let response = self.client.post(&SETTINGS.deepseek.base_url)
+            .headers(headers)
             .json(request_body)
             .send()
             .await?;

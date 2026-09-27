@@ -1,0 +1,11 @@
+[deepseek]
+base_url = "https://api.deepseek.com/chat/completions"
+max_retries = 10
+
+[tools]
+workspace = "./workspace"
+allow_shell = true
+
+[model]
+default_model = "deepseek-flash"
+temperature = 1
