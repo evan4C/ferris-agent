@@ -1,13 +1,11 @@
-use ferris_agent::DeepSeekClient;
 use anyhow::Result;
+use ferris_agent::DeepSeekClient;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let mut current_step: u8 = 0;
     let agent = DeepSeekClient::new();
-    let mut request_body = agent
-        .chat()
-        .user("what is the capital of China?");
+    let mut request_body = agent.chat().user("what is the capital of China?");
 
     // the main agent loop
     loop {
@@ -26,7 +24,7 @@ async fn main() -> Result<()> {
         // Step 2: parse tool calls and exit the loop if there are no tool calls
         let tool_calls = agent.parse_tool_calls(&llm_output);
         println!("Parsed tool calls: {:?}", tool_calls);
-        
+
         if tool_calls.is_empty() {
             break;
         }

@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize, ser::SerializeMap};
 use crate::DeepSeekClient;
 use crate::config;
+use serde::{Deserialize, Serialize, ser::SerializeMap};
 
 // region: Request structs
 #[derive(Debug, Serialize)]
@@ -105,7 +105,6 @@ impl Serialize for ResponseFormat {
         map.end()
     }
 }
-        
 
 #[derive(Debug, Serialize)]
 pub struct StreamOptions {
@@ -170,7 +169,7 @@ pub struct ChatBuilder<'a> {
     pub max_tokens: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response_format: Option<ResponseFormat>,
-    
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stream: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -214,7 +213,8 @@ impl<'a> ChatBuilder<'a> {
             logprobs: None,
             top_logprobs: None,
             user_id: None,
-        }.system(config::constants::SYSTEM_PROMPT)
+        }
+        .system(config::constants::SYSTEM_PROMPT)
     }
 
     pub fn model(mut self, model: Model) -> Self {

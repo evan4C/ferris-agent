@@ -1,5 +1,5 @@
-pub mod settings;
 pub mod constants;
+pub mod settings;
 
 use config::{Config, Environment, File};
 use once_cell::sync::Lazy;

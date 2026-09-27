@@ -1,7 +1,7 @@
-use crate::error::DeepSeekError;
-use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE, AUTHORIZATION};
-use crate::models::*;
 use crate::config::SETTINGS;
+use crate::error::DeepSeekError;
+use crate::models::*;
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
 
 #[derive(Debug)]
 pub struct DeepSeekClient {
@@ -20,18 +20,27 @@ impl DeepSeekClient {
     pub async fn query_llm(&self, request_body: &ChatBuilder<'_>) -> Result<String, DeepSeekError> {
         let mut headers = HeaderMap::new();
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-        headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", SETTINGS.deepseek.api_key)).unwrap());
+        headers.insert(
+            AUTHORIZATION,
+            HeaderValue::from_str(&format!("Bearer {}", SETTINGS.deepseek.api_key)).unwrap(),
+        );
 
-        let response = self.client.post(&SETTINGS.deepseek.base_url)
+        let response = self
+            .client
+            .post(&SETTINGS.deepseek.base_url)
             .headers(headers)
             .json(request_body)
             .send()
             .await?;
-        
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
-            return Err(DeepSeekError::Api(format!("API request failed with status {}: {}", status, text)).into());
+            return Err(DeepSeekError::Api(format!(
+                "API request failed with status {}: {}",
+                status, text
+            ))
+            .into());
         }
 
         response
