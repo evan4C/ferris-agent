@@ -1,40 +1,15 @@
 use anyhow::Result;
-use ferris_agent::DeepSeekClient;
+use ferris_agent::{Conversation, DeepSeekClient};
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut current_step: u8 = 0;
-    let agent = DeepSeekClient::new();
-    let mut request_body = agent.chat().user("what is the capital of China?");
+    let agent = Arc::new(DeepSeekClient::new());
+    let mut conversation = Conversation::new(agent);
 
-    // the main agent loop
-    loop {
-        current_step += 1;
-        if current_step > agent.max_retries {
-            eprintln!("Maximum steps reached");
-            break;
-        }
-
-        // Step 1: get llm response and push it to the conversation history
-        let llm_output: String = agent.query_llm(&request_body).await?;
-        println!("LLM output: {}", llm_output);
-
-        request_body = request_body.assistant(llm_output.clone());
-
-        // Step 2: parse tool calls and exit the loop if there are no tool calls
-        let tool_calls = agent.parse_tool_calls(&llm_output);
-        println!("Parsed tool calls: {:?}", tool_calls);
-
-        if tool_calls.is_empty() {
-            break;
-        }
-
-        // Step 3: execute tool calls and push the results to the conversation history
-        let action = tool_calls[0].clone();
-        let action_result = agent.execute_action(action);
-        println!("Action result: {}", action_result);
-
-        request_body = request_body.tool(action_result.clone());
-    }
+    let reply = conversation
+        .send("write a new file called hello-world.txt and come up with a computer science joke and write into it")
+        .await?;
+    println!("LLM output: {}", reply);
     Ok(())
 }

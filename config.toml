@@ -1,6 +1,6 @@
 [deepseek]
 base_url = "https://api.deepseek.com/chat/completions"
-max_retries = 10
+max_steps = 10
 
 [tools]
 workspace = "./workspace"

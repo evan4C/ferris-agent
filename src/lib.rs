@@ -1,7 +1,9 @@
-pub mod client;
+pub mod agent;
+pub mod api;
 pub mod config;
-pub mod error;
-pub mod models;
+pub mod conversation;
+pub mod tool;
 
-pub use client::DeepSeekClient;
-pub use models::{ChatBuilder, ChatResponse, Model};
+pub use agent::Agent;
+pub use api::{ChatCompletionRequest, ChatResponse, DeepSeekClient, DeepSeekError, Message, Model};
+pub use conversation::{ChatOptions, Conversation};

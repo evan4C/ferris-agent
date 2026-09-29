@@ -1,59 +1,16 @@
-use crate::DeepSeekClient;
+use crate::api::client::DeepSeekClient;
+use crate::api::error::DeepSeekError;
+use crate::api::message::Message;
 use crate::config;
-use serde::{Deserialize, Serialize, ser::SerializeMap};
+use crate::tool::registry::ToolDefinition;
+use serde::{Serialize, ser::SerializeMap};
 
-// region: Request structs
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub enum Model {
     #[serde(rename = "deepseek-flash")]
     Flash,
     #[serde(rename = "deepseek-v4-pro")]
     Pro,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Role {
-    System,
-    User,
-    Assistant,
-    Tool,
-}
-
-#[derive(Debug, Serialize)]
-pub struct Message {
-    role: Role,
-    content: String,
-}
-
-impl Message {
-    pub fn system(content: impl Into<String>) -> Self {
-        Self {
-            role: Role::System,
-            content: content.into(),
-        }
-    }
-
-    pub fn user(content: impl Into<String>) -> Self {
-        Self {
-            role: Role::User,
-            content: content.into(),
-        }
-    }
-
-    pub fn assistant(content: impl Into<String>) -> Self {
-        Self {
-            role: Role::Assistant,
-            content: content.into(),
-        }
-    }
-
-    pub fn tool(content: impl Into<String>) -> Self {
-        Self {
-            role: Role::Tool,
-            content: content.into(),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -97,7 +54,6 @@ impl Serialize for ResponseFormat {
         S: serde::Serializer,
     {
         let mut map = serializer.serialize_map(Some(1))?;
-
         match self {
             ResponseFormat::JsonObject => map.serialize_entry("type", "json_object")?,
             ResponseFormat::Text => map.serialize_entry("type", "text")?,
@@ -112,49 +68,34 @@ pub struct StreamOptions {
 }
 
 #[derive(Debug, Serialize)]
-pub struct ToolFunc {
-    description: Option<String>,
-    name: String,
-    strict: bool,
-}
-
-#[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
-pub enum ToolType {
-    Function,
-}
-
-#[derive(Debug, Serialize)]
-pub struct Tools {
-    #[serde(rename = "type")]
-    kind: ToolType,
-    function: ToolFunc,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum SimpleTC {
+pub enum ChatCompletionToolChoice {
     None,
     Auto,
     Required,
 }
 
 #[derive(Debug, Serialize)]
-pub struct NamedTC {
+pub struct ChatCompletionNamedToolChoice {
     #[serde(rename = "type")]
-    kind: ToolType,
-    name: String,
+    kind: String,
+    function: ChatCompletionNamedToolChoiceFunction,
 }
 
 #[derive(Debug, Serialize)]
+pub struct ChatCompletionNamedToolChoiceFunction {
+    pub name: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
 pub enum ToolChoice {
-    SimpleToolChoice(SimpleTC),
-    NamedToolChoice(NamedTC),
+    Choice(ChatCompletionToolChoice),
+    Named(ChatCompletionNamedToolChoice),
 }
 
-#[derive(Debug, Serialize)]
-pub struct ChatBuilder<'a> {
-    // Not part of the API payload; drives `create()`.
+#[derive(Serialize)]
+pub struct ChatCompletionRequest<'a> {
     #[serde(skip)]
     client: &'a DeepSeekClient,
 
@@ -173,7 +114,7 @@ pub struct ChatBuilder<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stream: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub stream_options: Option<StreamOptions>,
+    stream_options: Option<StreamOptions>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     temperature: Option<f32>,
@@ -181,7 +122,7 @@ pub struct ChatBuilder<'a> {
     top_p: Option<f32>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    tools: Option<Vec<Tools>>,
+    tools: Option<Vec<ToolDefinition>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tool_choice: Option<ToolChoice>,
 
@@ -194,7 +135,7 @@ pub struct ChatBuilder<'a> {
     user_id: Option<String>,
 }
 
-impl<'a> ChatBuilder<'a> {
+impl<'a> ChatCompletionRequest<'a> {
     pub fn new(client: &'a DeepSeekClient) -> Self {
         Self {
             client,
@@ -226,16 +167,24 @@ impl<'a> ChatBuilder<'a> {
         self.messages.push(Message::system(content));
         self
     }
+
     pub fn user(mut self, content: impl Into<String>) -> Self {
         self.messages.push(Message::user(content));
         self
     }
+
     pub fn assistant(mut self, content: impl Into<String>) -> Self {
         self.messages.push(Message::assistant(content));
         self
     }
+
     pub fn tool(mut self, content: impl Into<String>) -> Self {
         self.messages.push(Message::tool(content));
+        self
+    }
+
+    pub fn messages(mut self, messages: Vec<Message>) -> Self {
+        self.messages = messages;
         self
     }
 
@@ -259,44 +208,16 @@ impl<'a> ChatBuilder<'a> {
         self
     }
 
-    pub async fn create(self) -> Result<String, crate::error::DeepSeekError> {
-        self.client.query_llm(&self).await
+    pub fn tools(mut self, definitions: Vec<ToolDefinition>) -> Self {
+        if !definitions.is_empty() {
+            self.tools = Some(definitions);
+            self.tool_choice = Some(ToolChoice::Choice(ChatCompletionToolChoice::Auto));
+        }
+        self
+    }
+
+    pub async fn create(self) -> Result<String, DeepSeekError> {
+        let message = self.client.http_request(&self).await?;
+        Ok(message.content.unwrap_or_default())
     }
 }
-
-// endregion: Request structs
-
-// region: Response structs
-#[derive(Debug, Deserialize)]
-pub struct ChatResponse {
-    pub id: String,
-    pub object: String,
-    pub created: u64,
-    pub model: String,
-    pub choices: Vec<ChatChoice>,
-    pub usage: Option<ChatUsage>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ChatChoice {
-    pub index: u32,
-    pub finish_reason: Option<String>,
-    pub message: ChatMessage,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ChatMessage {
-    pub role: String,
-    pub content: String,
-
-    #[serde(default)]
-    pub reasoning_content: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ChatUsage {
-    pub prompt_tokens: u32,
-    pub completion_tokens: u32,
-    pub total_tokens: u32,
-}
-// endregion: Response structs
