@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.104"
+async-trait = "0.1.92"
 config = "0.15.26"
 dotenvy = "0.15.7"
 once_cell = "1.21.4"

@@ -1,5 +1,6 @@
 use crate::DeepSeekClient;
 use crate::config;
+use crate::tool::{ToolCall, registry::ToolDefinition};
 use serde::{Deserialize, Serialize, ser::SerializeMap};
 
 // region: Request structs
@@ -11,7 +12,7 @@ pub enum Model {
     Pro,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
     System,
@@ -20,38 +21,69 @@ pub enum Role {
     Tool,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Message {
     role: Role,
-    content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_calls: Option<Vec<ToolCall>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_call_id: Option<String>,
 }
 
 impl Message {
     pub fn system(content: impl Into<String>) -> Self {
         Self {
             role: Role::System,
-            content: content.into(),
+            content: Some(content.into()),
+            tool_calls: None,
+            tool_call_id: None,
         }
     }
 
     pub fn user(content: impl Into<String>) -> Self {
         Self {
             role: Role::User,
-            content: content.into(),
+            content: Some(content.into()),
+            tool_calls: None,
+            tool_call_id: None,
         }
     }
 
     pub fn assistant(content: impl Into<String>) -> Self {
         Self {
             role: Role::Assistant,
-            content: content.into(),
+            content: Some(content.into()),
+            tool_calls: None,
+            tool_call_id: None,
         }
     }
 
     pub fn tool(content: impl Into<String>) -> Self {
         Self {
             role: Role::Tool,
-            content: content.into(),
+            content: Some(content.into()),
+            tool_calls: None,
+            tool_call_id: None,
+        }
+    }
+
+    pub(crate) fn assistant_tool_calls(content: Option<String>, calls: Vec<ToolCall>) -> Self {
+        Self {
+            role: Role::Assistant,
+            content,
+            tool_calls: Some(calls),
+            tool_call_id: None,
+        }
+    }
+
+    pub(crate) fn tool_result(tool_call_id: String, content: String) -> Self {
+        Self {
+            role: Role::Tool,
+            content: Some(content),
+            tool_calls: None,
+            tool_call_id: Some(tool_call_id),
         }
     }
 }
@@ -112,48 +144,34 @@ pub struct StreamOptions {
 }
 
 #[derive(Debug, Serialize)]
-pub struct ToolFunc {
-    description: Option<String>,
-    name: String,
-    strict: bool,
-}
-
-#[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
-pub enum ToolType {
-    Function,
-}
-
-#[derive(Debug, Serialize)]
-pub struct Tools {
-    #[serde(rename = "type")]
-    kind: ToolType,
-    function: ToolFunc,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum SimpleTC {
+pub enum ChatCompletionToolChoice {
     None,
     Auto,
     Required,
 }
 
 #[derive(Debug, Serialize)]
-pub struct NamedTC {
+pub struct ChatCompletionNamedToolChoice {
     #[serde(rename = "type")]
-    kind: ToolType,
-    name: String,
+    kind: String,
+    function: ChatCompletionNamedToolChoiceFunction,
 }
 
 #[derive(Debug, Serialize)]
+pub struct ChatCompletionNamedToolChoiceFunction {
+    pub name: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
 pub enum ToolChoice {
-    SimpleToolChoice(SimpleTC),
-    NamedToolChoice(NamedTC),
+    Choice(ChatCompletionToolChoice),
+    Named(ChatCompletionNamedToolChoice),
 }
 
-#[derive(Debug, Serialize)]
-pub struct ChatBuilder<'a> {
+#[derive(Serialize)]
+pub struct ChatCompletionRequest<'a> {
     // Not part of the API payload; drives `create()`.
     #[serde(skip)]
     client: &'a DeepSeekClient,
@@ -181,7 +199,7 @@ pub struct ChatBuilder<'a> {
     top_p: Option<f32>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    tools: Option<Vec<Tools>>,
+    tools: Option<Vec<ToolDefinition>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tool_choice: Option<ToolChoice>,
 
@@ -194,8 +212,10 @@ pub struct ChatBuilder<'a> {
     user_id: Option<String>,
 }
 
-impl<'a> ChatBuilder<'a> {
+impl<'a> ChatCompletionRequest<'a> {
     pub fn new(client: &'a DeepSeekClient) -> Self {
+        let tool_definitions = client.tool_definitions();
+        let has_tools = !tool_definitions.is_empty();
         Self {
             client,
             messages: Vec::new(),
@@ -208,8 +228,8 @@ impl<'a> ChatBuilder<'a> {
             stream_options: None,
             temperature: None,
             top_p: None,
-            tools: None,
-            tool_choice: None,
+            tools: has_tools.then_some(tool_definitions),
+            tool_choice: has_tools.then_some(ToolChoice::Choice(ChatCompletionToolChoice::Auto)),
             logprobs: None,
             top_logprobs: None,
             user_id: None,
@@ -287,10 +307,13 @@ pub struct ChatChoice {
 #[derive(Debug, Deserialize)]
 pub struct ChatMessage {
     pub role: String,
-    pub content: String,
+    pub content: Option<String>,
 
     #[serde(default)]
     pub reasoning_content: Option<String>,
+
+    #[serde(default)]
+    pub tool_calls: Vec<ToolCall>,
 }
 
 #[derive(Debug, Deserialize)]
