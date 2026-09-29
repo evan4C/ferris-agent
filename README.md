@@ -1,5 +1,9 @@
 ﻿# ferris-agent
 
+<p align="center">
+ | <a href="README.md">English</a> | <a href="README_zh-CN.md">简体中文</a> | 
+</p>
+
 `ferris-agent` is a lightweight AI agent project written in Rust. It uses the DeepSeek Chat Completions API and supports multi-turn conversations and tool calls. It currently includes file read/write, shell command, and Git status tools, with a tool registry that controls which tools are available to the agent.
 
 ## Features
