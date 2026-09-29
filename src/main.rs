@@ -1,12 +1,15 @@
 use anyhow::Result;
-use ferris_agent::DeepSeekClient;
+use ferris_agent::{Conversation, DeepSeekClient};
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let agent = DeepSeekClient::new();
-    let user_prompt = "write a new file called hello.txt and come up with a joke and write into it";
-    let request = agent.chat().user(user_prompt);
-    let response = agent.query_llm(&request).await?;
-    println!("LLM output: {}", response);
+    let agent = Arc::new(DeepSeekClient::new());
+    let mut conversation = Conversation::new(agent);
+
+    let reply = conversation
+        .send("write a new file called hello-world.txt and come up with a computer science joke and write into it")
+        .await?;
+    println!("LLM output: {}", reply);
     Ok(())
 }

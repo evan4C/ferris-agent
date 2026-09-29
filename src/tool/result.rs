@@ -5,6 +5,3 @@ pub struct ToolResult {
     pub is_error: bool,
     pub metadata: Option<Value>,
 }
-
-
-
