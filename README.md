@@ -111,9 +111,17 @@ These tools are not currently sandboxed: file paths are not restricted to the wo
 
 ## Development
 
+### Release workflow
+
+To create a new release, tag the commit with a version number following the pattern `v*.*.*` and push the tag. The GitHub Actions workflow will automatically build the project for multiple targets, package the binaries, and publish a release.
+
+### Running Tests
+
 ```sh
 cargo test
 ```
+
+### Project Structure
 
 The main code is under `src/`:
 
