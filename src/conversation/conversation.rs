@@ -42,9 +42,17 @@ impl Conversation {
             .truncate(if self.messages.is_empty() { 0 } else { 1 });
     }
 
-    /// Sends a user message, resolving any tool calls and returns the final assistant reply
+    /// Sends a user message, resolving any tool calls and returns the final assistant reply.
+    /// On failure, the history is rolled back to its state before this call.
     pub async fn send(&mut self, user_prompt: impl Into<String>) -> Result<String, DeepSeekError> {
+        let rollback_len = self.messages.len();
         self.messages.push(Message::user(user_prompt));
-        self.agent.run(&mut self.messages).await
+        match self.agent.run(&mut self.messages).await {
+            Ok(reply) => Ok(reply),
+            Err(err) => {
+                self.messages.truncate(rollback_len);
+                Err(err)
+            }
+        }
     }
 }

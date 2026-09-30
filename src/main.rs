@@ -1,15 +1,50 @@
 use anyhow::Result;
-use ferris_agent::{Conversation, DeepSeekClient};
+use clap::Parser;
+use ferris_agent::{Cli, Conversation, DeepSeekClient};
+use std::io::Write;
 use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let agent = Arc::new(DeepSeekClient::new());
-    let mut conversation = Conversation::new(agent);
+    let cli = Cli::parse();
 
-    let reply = conversation
-        .send("write a new file called hello-world.txt and come up with a computer science joke and write into it")
-        .await?;
-    println!("LLM output: {}", reply);
+    let agent = Arc::new(DeepSeekClient::new());
+    let mut conversation = Conversation::new(agent).with_options(cli.chat_options());
+
+    match &cli.prompt {
+        Some(prompt) => {
+            let reply = conversation.send(prompt.clone()).await?;
+            println!("{}", reply);
+        }
+        None => run_repl(&mut conversation).await?,
+    }
+
+    Ok(())
+}
+
+async fn run_repl(conversation: &mut Conversation) -> Result<()> {
+    println!("Ferris Agent interactive session. Type 'exit' or 'quit' to leave.");
+    let stdin = std::io::stdin();
+    loop {
+        print!("> ");
+        std::io::stdout().flush()?;
+
+        let mut line = String::new();
+        if stdin.read_line(&mut line)? == 0 {
+            break;
+        }
+        let input = line.trim();
+        if input.is_empty() {
+            continue;
+        }
+        if input == "exit" || input == "quit" {
+            break;
+        }
+
+        match conversation.send(input.to_string()).await {
+            Ok(reply) => println!("{}", reply),
+            Err(err) => eprintln!("Error: {}", err),
+        }
+    }
     Ok(())
 }
