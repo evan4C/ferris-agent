@@ -1,13 +1,19 @@
 use crate::api::Thinking;
 use crate::api::error::DeepSeekError;
 use crate::api::request::ChatCompletionRequest;
-use crate::api::response::{ChatMessage, ChatResponse, ChatStreamChunk};
+use crate::api::response::{ChatMessage, ChatResponse, ChatStreamChunk, ChatUsage};
 use crate::config::DeepSeekConfig;
 use crate::tool::ToolCall;
 use futures_util::StreamExt;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
 use std::collections::BTreeMap;
 use std::io::Write;
+
+/// A single model turn along with the token usage billed for it.
+pub struct ApiTurn {
+    pub message: ChatMessage,
+    pub usage: Option<ChatUsage>,
+}
 
 pub struct DeepSeekClient {
     client: reqwest::Client,
@@ -38,7 +44,7 @@ impl DeepSeekClient {
     pub async fn http_request(
         &self,
         request_body: &ChatCompletionRequest<'_>,
-    ) -> Result<ChatMessage, DeepSeekError> {
+    ) -> Result<ApiTurn, DeepSeekError> {
         let mut headers = HeaderMap::new();
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
         headers.insert(AUTHORIZATION, self.authorization.clone());
@@ -84,7 +90,8 @@ impl DeepSeekClient {
             if is_thinking && let Some(reasoning) = &message.reasoning_content {
                 eprintln!("Thinking: {}", reasoning);
             }
-            Ok(message)
+            Ok(ApiTurn { message, usage: response.usage })
+        }
         }
     }
 

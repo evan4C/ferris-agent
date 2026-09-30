@@ -236,7 +236,7 @@ impl<'a> ChatCompletionRequest<'a> {
     }
 
     pub async fn create(self) -> Result<String, DeepSeekError> {
-        let message = self.client.http_request(&self).await?;
-        Ok(message.content.unwrap_or_default())
+        let turn = self.client.http_request(&self).await?;
+        Ok(turn.message.content.unwrap_or_default())
     }
 }
