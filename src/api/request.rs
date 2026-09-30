@@ -5,12 +5,25 @@ use crate::config;
 use crate::tool::registry::ToolDefinition;
 use serde::{Serialize, ser::SerializeMap};
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug)]
 pub enum Model {
-    #[serde(rename = "deepseek-flash")]
     Flash,
-    #[serde(rename = "deepseek-v4-pro")]
     Pro,
+    Custom(String),
+}
+
+impl Serialize for Model {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let model = match self {
+            Self::Flash => "deepseek-flash",
+            Self::Pro => "deepseek-v4-pro",
+            Self::Custom(model) => model,
+        };
+        serializer.serialize_str(model)
+    }
 }
 
 #[derive(Debug)]

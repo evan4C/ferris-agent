@@ -1,8 +1,8 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::agent::Agent;
 use crate::api::{DeepSeekClient, DeepSeekError, Message};
-use crate::config;
 use crate::conversation::ChatOptions;
 use crate::tool::registry::ToolRegistry;
 
@@ -17,8 +17,18 @@ impl Conversation {
     pub fn new(client: Arc<DeepSeekClient>) -> Self {
         Self {
             agent: Agent::new(client),
-            messages: vec![Message::system(config::constants::SYSTEM_PROMPT)],
+            messages: vec![Message::system(crate::config::constants::SYSTEM_PROMPT)],
         }
+    }
+
+    pub fn with_max_iterations(mut self, max_iterations: u8) -> Self {
+        self.agent = self.agent.with_max_iterations(max_iterations);
+        self
+    }
+
+    pub fn with_workspace(mut self, workspace: PathBuf) -> Self {
+        self.agent = self.agent.with_workspace(workspace);
+        self
     }
 
     pub fn with_tool_registry(mut self, registry: ToolRegistry) -> Self {
