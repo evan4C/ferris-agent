@@ -1,5 +1,5 @@
 use anyhow::Result;
-use crate::tool::tool_call_type;
+use crate::DeepSeekError;
 use crate::api::request::ChatCompletionRequest;
 use crate::api::response::{ChatCompletionChunk, ChatMessage, ChatResponse};
 use crate::config::SETTINGS;
