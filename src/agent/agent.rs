@@ -52,7 +52,7 @@ impl Agent {
         Self {
             client,
             messages: vec![Message::system(crate::config::constants::SYSTEM_PROMPT)],
-            registry: ToolRegistry::builder().filesystem().build(),
+            registry: ToolRegistry::builder().filesystem().git().build(),
             context: ToolContext::new(working_dir, std::env::vars().collect::<HashMap<_, _>>()),
             options: CliOptions::default(),
             max_iterations: 10,

@@ -2,8 +2,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::Value;
 use std::borrow::Cow;
-use tokio::process::Command;
 
+use super::commands::run_git;
 use crate::tool::{Tool, ToolContext, ToolMetadata, ToolResult};
 
 pub struct GitStatusTool;
@@ -23,20 +23,6 @@ impl Tool for GitStatusTool {
     }
 
     async fn execute(&self, ctx: &ToolContext, _args: Value) -> Result<ToolResult> {
-        let output = Command::new("git")
-            .args(["status", "--short", "--branch"])
-            .current_dir(&ctx.working_dir)
-            .output()
-            .await?;
-
-        let mut content = String::from_utf8_lossy(&output.stdout).into_owned();
-        content.push_str(&String::from_utf8_lossy(&output.stderr));
-
-        // TODO: split content into stdout and stderr separately
-        Ok(ToolResult {
-            content,
-            is_error: !output.status.success(),
-            metadata: Some(serde_json::json!({ "exit_code": output.status.code() })),
-        })
+        run_git(ctx, &["status".into(), "--short".into(), "--branch".into()]).await
     }
 }
