@@ -37,41 +37,41 @@ pub struct ChatUsage {
     pub total_tokens: u32,
 }
 
-/// A single SSE chunk from a streaming chat completion.
+/// A single chunk of a server-sent-events streaming response.
 #[derive(Debug, Deserialize)]
-pub struct ChatCompletionChunk {
-    #[serde(default)]
-    pub choices: Vec<ChatChunkChoice>,
+pub struct ChatStreamChunk {
+    pub choices: Vec<ChatStreamChoice>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct ChatChunkChoice {
+pub struct ChatStreamChoice {
     pub delta: ChatDelta,
-    #[serde(default)]
-    pub finish_reason: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+/// Incremental piece of an assistant message delivered while streaming.
+#[derive(Debug, Default, Deserialize)]
 pub struct ChatDelta {
     #[serde(default)]
     pub role: Option<String>,
     #[serde(default)]
     pub content: Option<String>,
     #[serde(default)]
-    pub tool_calls: Option<Vec<ToolCallDelta>>,
+    pub reasoning_content: Option<String>,
+    #[serde(default)]
+    pub tool_calls: Option<Vec<ChatToolCallDelta>>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct ToolCallDelta {
+pub struct ChatToolCallDelta {
     pub index: usize,
     #[serde(default)]
     pub id: Option<String>,
     #[serde(default)]
-    pub function: Option<ToolCallFunctionDelta>,
+    pub function: Option<ChatToolCallFunctionDelta>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct ToolCallFunctionDelta {
+#[derive(Debug, Default, Deserialize)]
+pub struct ChatToolCallFunctionDelta {
     #[serde(default)]
     pub name: Option<String>,
     #[serde(default)]

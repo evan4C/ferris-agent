@@ -60,7 +60,10 @@ impl Agent {
 
         loop {
             request = request.messages(messages.clone());
-            let response = self.client.http_request(&request).await?;
+            let response = self
+                .client
+                .http_request(&request, self.options.show_reasoning)
+                .await?;
             if response.tool_calls.is_empty() {
                 let reply = response.content.unwrap_or_default();
                 messages.push(Message::assistant(reply.clone()));

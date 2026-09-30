@@ -5,6 +5,7 @@ pub struct ChatOptions {
     pub model: Model,
     pub max_tokens: Option<u32>,
     pub stream: bool,
+    pub show_reasoning: bool,
 }
 
 impl Default for ChatOptions {
@@ -13,6 +14,7 @@ impl Default for ChatOptions {
             model: Model::Flash,
             max_tokens: None,
             stream: false,
+            show_reasoning: false,
         }
     }
 }
