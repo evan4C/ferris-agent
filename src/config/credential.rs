@@ -70,7 +70,10 @@ impl CredentialStore {
     }
 
     pub fn get_api_key(&self, provider: &str) -> Result<String, CredentialError> {
-        self.backend.get(provider)
+        let keyring_result = self.backend.get(provider);
+        let env_name = api_key_env_var(provider);
+        let environment_value = std::env::var(env_name).ok();
+        resolve_api_key(keyring_result, environment_value)
     }
 
     pub fn set_api_key(&self, provider: &str, api_key: &str) -> Result<(), CredentialError> {
@@ -79,6 +82,40 @@ impl CredentialStore {
 
     pub fn delete_api_key(&self, provider: &str) -> Result<(), CredentialError> {
         self.backend.delete(provider)
+    }
+}
+
+fn api_key_env_var(provider: &str) -> String {
+    let provider = provider
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character.to_ascii_uppercase()
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    format!("FERRIS_AGENT_{provider}_API_KEY")
+}
+
+fn resolve_api_key(
+    keyring_result: Result<String, CredentialError>,
+    environment_value: Option<String>,
+) -> Result<String, CredentialError> {
+    if let Ok(key) = &keyring_result
+        && !key.trim().is_empty()
+    {
+        return Ok(key.clone());
+    }
+
+    if let Some(key) = environment_value.filter(|key| !key.trim().is_empty()) {
+        return Ok(key);
+    }
+
+    match keyring_result {
+        Ok(_) => Err(CredentialError::NotFound),
+        Err(error) => Err(error),
     }
 }
 
@@ -119,9 +156,38 @@ mod tests {
         store.set_api_key("deepseek", "test-secret").unwrap();
         assert_eq!(store.get_api_key("deepseek").unwrap(), "test-secret");
         store.delete_api_key("deepseek").unwrap();
+    }
+
+    #[test]
+    fn environment_key_is_used_when_keyring_has_no_entry_or_fails() {
+        assert_eq!(
+            resolve_api_key(Err(CredentialError::NotFound), Some("env-secret".into())).unwrap(),
+            "env-secret"
+        );
+        assert_eq!(
+            resolve_api_key(Err(CredentialError::Store), Some("env-secret".into())).unwrap(),
+            "env-secret"
+        );
+    }
+
+    #[test]
+    fn keyring_takes_precedence_over_environment() {
+        assert_eq!(
+            resolve_api_key(Ok("keyring-secret".into()), Some("env-secret".into())).unwrap(),
+            "keyring-secret"
+        );
+    }
+
+    #[test]
+    fn empty_keys_are_not_used_as_credentials() {
         assert!(matches!(
-            store.get_api_key("deepseek"),
+            resolve_api_key(Ok(" ".into()), Some("".into())),
             Err(CredentialError::NotFound)
         ));
+    }
+
+    #[test]
+    fn creates_provider_environment_variable_name() {
+        assert_eq!(api_key_env_var("deepseek"), "FERRIS_AGENT_DEEPSEEK_API_KEY");
     }
 }

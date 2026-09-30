@@ -77,7 +77,7 @@ fn run_config_command(command: CliCommand) -> Result<()> {
                 ConfigCommand::Delete { key } if key.ends_with(".api_key") => {
                     let provider = key.strip_suffix(".api_key").unwrap_or_default();
                     credentials.delete_api_key(provider)?;
-                    println!("API key deleted.");
+                    println!("Keyring API key deleted. Environment variables are unchanged.");
                 }
                 ConfigCommand::Delete { .. } => {
                     anyhow::bail!("config delete only supports <provider>.api_key");

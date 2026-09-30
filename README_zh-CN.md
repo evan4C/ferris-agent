@@ -56,6 +56,15 @@ max_iterations = 10
 
 运行 `cargo run -- config get deepseek.api_key` 只会检查密钥是否已配置，不会打印密钥。运行 `cargo run -- config delete deepseek.api_key` 可删除密钥。
 
+如果操作系统凭据管理器不可用，程序会回退到环境变量 `FERRIS_AGENT_DEEPSEEK_API_KEY`：
+
+```sh
+export FERRIS_AGENT_DEEPSEEK_API_KEY="your-api-key"
+cargo run
+```
+
+Keyring 中存在非空密钥时优先使用 Keyring。删除 Keyring 条目不会清除环境变量；需要在设置该变量的 shell 或 CI 配置中自行移除。
+
 ## 运行
 
 ```sh

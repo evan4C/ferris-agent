@@ -60,6 +60,15 @@ max_iterations = 10
 
 Use `cargo run -- config get deepseek.api_key` to check whether the key is configured; the secret itself is never printed. Use `cargo run -- config delete deepseek.api_key` to remove it.
 
+If the OS credential manager is unavailable, the application falls back to `FERRIS_AGENT_DEEPSEEK_API_KEY`:
+
+```sh
+export FERRIS_AGENT_DEEPSEEK_API_KEY="your-api-key"
+cargo run
+```
+
+The keyring takes precedence when it contains a non-empty key. Deleting a keyring entry does not remove an environment variable; environment variables must be unset in the shell or CI configuration that provides them.
+
 ## Run
 
 ```sh
