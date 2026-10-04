@@ -38,16 +38,17 @@ Agent ── sends model requests and drives the tool-call loop
 
 ## Configuration
 
-The application stores non-sensitive settings in the platform-specific user configuration directory and API keys in the operating system credential manager. Initialize the configuration and store your DeepSeek API key with:
+The application stores non-sensitive settings in the platform-specific user configuration directory and the API key in the `FERRIS_AGENT_DEEPSEEK_API_KEY` environment variable, which works on every platform. Initialize the configuration with:
 
 ```sh
 cargo run -- init
-cargo run -- config set deepseek.api_key YOUR_API_KEY
 ```
 
 The generated `config.toml` contains only non-sensitive settings. Its defaults are also available in [`config.example.toml`](config.example.toml):
 
 The file is stored under the platform-specific user configuration directory, such as `~/.config/ferris-agent/config.toml` on Linux or `~/Library/Application Support/ferris-agent/config.toml` on macOS.
+
+Edit `config.toml` directly to change settings.
 
 ```toml
 [deepseek]
@@ -58,16 +59,12 @@ base_url = "https://api.deepseek.com/chat/completions"
 max_iterations = 10
 ```
 
-Use `cargo run -- config get deepseek.api_key` to check whether the key is configured; the secret itself is never printed. Use `cargo run -- config delete deepseek.api_key` to remove it.
-
-If the OS credential manager is unavailable, the application falls back to `FERRIS_AGENT_DEEPSEEK_API_KEY`:
+Set the API key before running:
 
 ```sh
 export FERRIS_AGENT_DEEPSEEK_API_KEY="your-api-key"
 cargo run
 ```
-
-The keyring takes precedence when it contains a non-empty key. Deleting a keyring entry does not remove an environment variable; environment variables must be unset in the shell or CI configuration that provides them.
 
 ## Run
 

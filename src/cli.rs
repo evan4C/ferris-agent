@@ -30,21 +30,6 @@ pub struct Cli {
 pub enum CliCommand {
     /// Create the user configuration file.
     Init,
-    /// Manage configuration and provider credentials.
-    Config {
-        #[command(subcommand)]
-        action: ConfigCommand,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-pub enum ConfigCommand {
-    /// Store a setting or credential.
-    Set { key: String, value: String },
-    /// Read a setting, or report whether a credential is configured.
-    Get { key: String },
-    /// Delete a credential.
-    Delete { key: String },
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
