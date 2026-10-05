@@ -1,8 +1,8 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::api::{DeepSeekClient, DeepSeekError, Message};
-use crate::config;
 use crate::conversation::ChatOptions;
 use crate::tool::{ToolContext, registry::ToolRegistry};
 
@@ -11,6 +11,7 @@ pub struct Agent {
     registry: ToolRegistry,
     context: ToolContext,
     options: ChatOptions,
+    max_iterations: u8,
 }
 
 impl Agent {
@@ -21,7 +22,18 @@ impl Agent {
             registry: ToolRegistry::builder().filesystem().build(),
             context: ToolContext::new(working_dir, std::env::vars().collect::<HashMap<_, _>>()),
             options: ChatOptions::default(),
+            max_iterations: 10,
         }
+    }
+
+    pub fn with_max_iterations(mut self, max_iterations: u8) -> Self {
+        self.max_iterations = max_iterations;
+        self
+    }
+
+    pub fn with_workspace(mut self, workspace: PathBuf) -> Self {
+        self.context.working_dir = workspace;
+        self
     }
 
     pub fn with_tool_registry(mut self, registry: ToolRegistry) -> Self {
@@ -55,7 +67,7 @@ impl Agent {
                 return Ok(reply);
             }
 
-            if tool_rounds >= config::SETTINGS.deepseek.max_steps {
+            if tool_rounds >= self.max_iterations {
                 return Err(DeepSeekError::Api(
                     "Maximum tool-call rounds reached".into(),
                 ));

@@ -92,7 +92,15 @@ impl ToolRegistry {
     ) -> Result<Vec<(String, ToolResult)>> {
         let mut results = Vec::with_capacity(calls.len());
         for call in calls {
-            results.push((call.id.clone(), self.dispatch(ctx, call).await?));
+            let result = match self.dispatch(ctx, call).await {
+                Ok(result) => result,
+                Err(error) => ToolResult {
+                    content: error.to_string(),
+                    is_error: true,
+                    metadata: None,
+                },
+            };
+            results.push((call.id.clone(), result));
         }
         Ok(results)
     }
@@ -128,7 +136,18 @@ impl ToolRegistryBuilder {
 mod tests {
     use super::*;
     use serde_json::json;
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    fn test_directory() -> std::path::PathBuf {
+        static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
+        let path = std::env::temp_dir().join(format!(
+            "ferris-agent-{}-{}",
+            std::process::id(),
+            NEXT_ID.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir(&path).unwrap();
+        path
+    }
 
     #[test]
     fn definitions_use_function_tool_format() {
@@ -150,12 +169,7 @@ mod tests {
 
     #[tokio::test]
     async fn dispatches_file_tool_relative_to_working_directory() {
-        let suffix = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let directory = std::env::temp_dir().join(format!("ferris-agent-{suffix}"));
-        std::fs::create_dir_all(&directory).unwrap();
+        let directory = test_directory();
         std::fs::write(directory.join("sample.txt"), "tool result").unwrap();
 
         let call = serde_json::from_value(json!({
@@ -176,6 +190,35 @@ mod tests {
             .unwrap();
 
         assert_eq!(result.content, "tool result");
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[tokio::test]
+    async fn returns_tool_errors_for_missing_files() {
+        let directory = test_directory();
+
+        let call = serde_json::from_value(json!({
+            "id": "call-missing",
+            "type": "function",
+            "function": {
+                "name": "read_file",
+                "arguments": "{\"path\":\"missing.txt\"}"
+            }
+        }))
+        .unwrap();
+        let context = ToolContext::new(directory.clone(), HashMap::new());
+        let results = ToolRegistry::builder()
+            .filesystem()
+            .build()
+            .dispatch_many(&context, &[call])
+            .await
+            .unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].0, "call-missing");
+        assert!(results[0].1.is_error);
+        assert!(!results[0].1.content.is_empty());
+
         std::fs::remove_dir_all(directory).unwrap();
     }
 }

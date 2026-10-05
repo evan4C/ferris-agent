@@ -10,7 +10,7 @@
 
 - Chat with the DeepSeek API using the `deepseek-flash` and `deepseek-v4-pro` models.
 - `Conversation` stores the system prompt, user messages, assistant replies, and tool results for subsequent turns.
-- `Agent` sends model requests, handles tool calls, and returns tool results to the model. The number of tool-call rounds is limited by `deepseek.max_steps`.
+- `Agent` sends model requests, handles tool calls, and returns tool results to the model. The number of tool-call rounds is limited by `agent.max_iterations`.
 - `ToolRegistry` registers tools, generates the tool definitions required by the API, and dispatches model-issued calls.
 - Built-in tools: `read_file`, `write_file`, `bash`, and `git_status`.
 
@@ -38,21 +38,33 @@ Agent ── sends model requests and drives the tool-call loop
 
 ## Configuration
 
-Install the Rust toolchain and provide a DeepSeek API key. Set it in a `.env` file in the project root:
+The application stores non-sensitive settings in the platform-specific user configuration directory and the API key in the `FERRIS_AGENT_DEEPSEEK_API_KEY` environment variable, which works on every platform. Initialize the configuration with:
 
-```dotenv
-DEEPSEEK__API_KEY=your-api-key
+```sh
+cargo run -- init
 ```
 
-The project reads `config.toml` and environment variables. The runtime currently uses the following DeepSeek settings:
+The generated `config.toml` contains only non-sensitive settings. Its defaults are also available in [`config.example.toml`](config.example.toml):
+
+The file is stored under the platform-specific user configuration directory, such as `~/.config/ferris-agent/config.toml` on Linux or `~/Library/Application Support/ferris-agent/config.toml` on macOS.
+
+Edit `config.toml` directly to change settings.
 
 ```toml
 [deepseek]
+model = "deepseek-chat"
 base_url = "https://api.deepseek.com/chat/completions"
-max_steps = 10
+
+[agent]
+max_iterations = 10
 ```
 
-You can also set the corresponding environment variables `DEEPSEEK__BASE_URL` and `DEEPSEEK__MAX_STEPS`. Do not commit your API key; `.env` is ignored by the repository's `.gitignore`.
+Set the API key before running:
+
+```sh
+export FERRIS_AGENT_DEEPSEEK_API_KEY="your-api-key"
+cargo run
+```
 
 ## Run
 
@@ -65,13 +77,18 @@ The example program sends one request to the model and prints the final reply. I
 ## Use as a Rust Library
 
 ```rust,no_run
+use ferris_agent::config::credential;
+use ferris_agent::config::AppConfig;
 use ferris_agent::{Conversation, DeepSeekClient};
 use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-	let client = Arc::new(DeepSeekClient::new());
-	let mut conversation = Conversation::new(client);
+	let config = AppConfig::load()?;
+	let api_key = credential::get_api_key("deepseek")?;
+	let client = Arc::new(DeepSeekClient::new(config.deepseek, api_key)?);
+	let mut conversation =
+		Conversation::new(client).with_max_iterations(config.agent.max_iterations);
 
 	let reply = conversation.send("Read README.md and summarize it.").await?;
 	println!("{reply}");
@@ -87,17 +104,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 To enable additional tools, build a registry and pass it to the conversation:
 
 ```rust,no_run
+use ferris_agent::config::credential;
+use ferris_agent::config::AppConfig;
 use ferris_agent::{Conversation, DeepSeekClient};
 use ferris_agent::tool::registry::ToolRegistry;
 use std::sync::Arc;
 
+let config = AppConfig::load()?;
+let api_key = credential::get_api_key("deepseek")?;
+let client = Arc::new(DeepSeekClient::new(config.deepseek, api_key)?);
 let registry = ToolRegistry::builder()
 	.filesystem()
 	.shell()
 	.git()
 	.build();
 
-let conversation = Conversation::new(Arc::new(DeepSeekClient::new()))
+let conversation = Conversation::new(client)
+	.with_max_iterations(config.agent.max_iterations)
 	.with_tool_registry(registry);
 ```
 
@@ -107,7 +130,7 @@ let conversation = Conversation::new(Arc::new(DeepSeekClient::new()))
 
 `Agent::new` enables `read_file` and `write_file` by default. Shell and Git tools are only exposed to the model when `.shell()` and `.git()` are respectively called on the registry. File tools join the supplied path to the working directory; the Shell tool executes model-generated commands through `sh -c` and inherits the process environment variables.
 
-These tools are not currently sandboxed: file paths are not restricted to the working directory, and shell commands do not require approval. Enable them only in environments you trust, and be aware that tools may read, modify, or delete local data. The `[tools]` and `[model]` settings in `config.toml` are not yet connected to the runtime. The actual working directory is the process's current directory at startup, and the default model is selected by `ChatOptions`.
+These tools are not currently sandboxed: file paths are not restricted to the working directory, and shell commands do not require approval. Enable them only in environments you trust, and be aware that tools may read, modify, or delete local data. The configured model, tool-call limit, and optional `tools.workspace` are used by the runtime; an explicit `--model` argument overrides the configured model.
 
 ## Development
 
