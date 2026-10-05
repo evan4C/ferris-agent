@@ -1,6 +1,6 @@
+use directories::ProjectDirs;
 use std::fs;
 use std::path::{Path, PathBuf};
-use directories::ProjectDirs;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

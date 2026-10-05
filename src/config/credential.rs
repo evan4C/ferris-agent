@@ -40,6 +40,10 @@ mod tests {
     #[test]
     fn missing_key_reports_variable_name() {
         let error = get_api_key("ferris-test-unset").unwrap_err();
-        assert!(error.to_string().contains("FERRIS_AGENT_FERRIS_TEST_UNSET_API_KEY"));
+        assert!(
+            error
+                .to_string()
+                .contains("FERRIS_AGENT_FERRIS_TEST_UNSET_API_KEY")
+        );
     }
 }
