@@ -73,7 +73,7 @@ cargo run
 ## 作为 Rust 库使用
 
 ```rust,no_run
-use ferris_agent::config::credential::CredentialStore;
+use ferris_agent::config::credential;
 use ferris_agent::config::AppConfig;
 use ferris_agent::{Conversation, DeepSeekClient};
 use std::sync::Arc;
@@ -81,7 +81,7 @@ use std::sync::Arc;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = AppConfig::load()?;
-    let api_key = CredentialStore::new().get_api_key("deepseek")?;
+    let api_key = credential::get_api_key("deepseek")?;
     let client = Arc::new(DeepSeekClient::new(config.deepseek, api_key)?);
     let mut conversation =
         Conversation::new(client).with_max_iterations(config.agent.max_iterations);
@@ -100,14 +100,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 需要其他工具时，构造注册表并传入会话：
 
 ```rust,no_run
-use ferris_agent::config::credential::CredentialStore;
+use ferris_agent::config::credential;
 use ferris_agent::config::AppConfig;
 use ferris_agent::{Conversation, DeepSeekClient};
 use ferris_agent::tool::registry::ToolRegistry;
 use std::sync::Arc;
 
 let config = AppConfig::load()?;
-let api_key = CredentialStore::new().get_api_key("deepseek")?;
+let api_key = credential::get_api_key("deepseek")?;
 let client = Arc::new(DeepSeekClient::new(config.deepseek, api_key)?);
 let registry = ToolRegistry::builder()
     .filesystem()
