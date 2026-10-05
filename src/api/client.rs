@@ -1,9 +1,9 @@
 use anyhow::Result;
-use crate::DeepSeekError;
+use crate::api::error::DeepSeekError;
 use crate::api::request::ChatCompletionRequest;
 use crate::api::response::{ChatCompletionChunk, ChatMessage, ChatResponse};
-use crate::config::SETTINGS;
 use crate::tool::{ToolCall, ToolCallFunction};
+use crate::config::DeepSeekConfig;
 use futures_util::StreamExt;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
 use std::io::Write;
