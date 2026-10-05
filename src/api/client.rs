@@ -1,9 +1,9 @@
-use anyhow::Result;
 use crate::api::error::DeepSeekError;
 use crate::api::request::ChatCompletionRequest;
 use crate::api::response::{ChatCompletionChunk, ChatMessage, ChatResponse};
-use crate::tool::{ToolCall, ToolCallFunction};
 use crate::config::DeepSeekConfig;
+use crate::tool::{ToolCall, ToolCallFunction};
+use anyhow::Result;
 use futures_util::StreamExt;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
 use std::io::Write;
@@ -69,10 +69,7 @@ impl DeepSeekClient {
 
     /// Consumes a text/event-stream response, printing content deltas as they
     /// arrive and reassembling the full message once the stream ends.
-    async fn read_stream(
-        &self,
-        response: reqwest::Response,
-    ) -> Result<ChatMessage, DeepSeekError> {
+    async fn read_stream(&self, response: reqwest::Response) -> Result<ChatMessage, DeepSeekError> {
         let mut byte_stream = response.bytes_stream();
         let mut buffer = String::new();
         let mut role = String::from("assistant");
@@ -146,7 +143,9 @@ impl DeepSeekClient {
             reasoning_content: None,
             tool_calls: tool_calls
                 .into_iter()
-                .map(|(id, name, arguments)| ToolCall::new(id, ToolCallFunction { name, arguments }))
+                .map(|(id, name, arguments)| {
+                    ToolCall::new(id, ToolCallFunction { name, arguments })
+                })
                 .collect(),
         })
     }
@@ -155,4 +154,3 @@ impl DeepSeekClient {
         ChatCompletionRequest::new(self)
     }
 }
-
