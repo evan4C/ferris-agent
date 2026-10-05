@@ -7,6 +7,7 @@
 - 通过 DeepSeek API 进行对话，支持 `deepseek-flash` 和 `deepseek-v4-pro` 模型。
 - `Conversation` 保存系统提示词、用户消息、助手回复和工具调用结果，供后续轮次继续使用。
 - `Agent` 负责请求模型、处理工具调用并将工具结果交回模型；工具调用轮数由 `agent.max_iterations` 限制。
+- `config` 管理应用配置，包括 DeepSeek API 设置和 Agent 参数。app 配置文件位于平台对应的用户配置目录中。
 - `ToolRegistry` 注册工具、生成 API 所需的工具定义，并分发模型发出的调用。
 - 内置工具：`read_file`、`write_file`、`bash` 和 `git_status`。
 
@@ -73,27 +74,13 @@ cargo run
 ## 作为 Rust 库使用
 
 ```rust,no_run
-use ferris_agent::config::credential;
-use ferris_agent::config::AppConfig;
-use ferris_agent::{Conversation, DeepSeekClient};
-use std::sync::Arc;
+use anyhow::Result;
+use clap::Parser;
+use ferris_agent::{Cli, app};
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let config = AppConfig::load()?;
-    let api_key = credential::get_api_key("deepseek")?;
-    let client = Arc::new(DeepSeekClient::new(config.deepseek, api_key)?);
-    let mut conversation =
-        Conversation::new(client).with_max_iterations(config.agent.max_iterations);
-
-    let reply = conversation.send("Read README.md and summarize it.").await?;
-    println!("{reply}");
-
-    // The next turn includes the earlier messages and tool results.
-    let follow_up = conversation.send("Make the summary shorter.").await?;
-    println!("{follow_up}");
-
-    Ok(())
+async fn main() -> Result<()> {
+    app::run(Cli::parse()).await
 }
 ```
 
