@@ -71,7 +71,7 @@ impl DeepSeekClient {
     /// arrive and reassembling the full message once the stream ends.
     async fn read_stream(&self, response: reqwest::Response) -> Result<ChatMessage, DeepSeekError> {
         let mut byte_stream = response.bytes_stream();
-        let mut buffer = String::new();
+        let mut buffer = Vec::new();
         let mut role = String::from("assistant");
         let mut content = String::new();
         let mut tool_calls: Vec<(String, String, String)> = Vec::new();
@@ -79,10 +79,10 @@ impl DeepSeekClient {
 
         while let Some(chunk) = byte_stream.next().await {
             let chunk = chunk?;
-            buffer.push_str(&String::from_utf8_lossy(&chunk));
+            buffer.extend_from_slice(&chunk);
 
-            while let Some(pos) = buffer.find('\n') {
-                let line = buffer[..pos].trim_end_matches('\r').to_string();
+            while let Some(pos) = buffer.iter().position(|&b| b == b'\n') {
+                let line = String::from_utf8_lossy(&buffer[..pos]).trim_end_matches('\r').to_string();
                 buffer.drain(..=pos);
 
                 let Some(data) = line.strip_prefix("data: ") else {
@@ -92,10 +92,7 @@ impl DeepSeekClient {
                     continue;
                 }
 
-                let chunk: ChatCompletionChunk = match serde_json::from_str(data) {
-                    Ok(chunk) => chunk,
-                    Err(_) => continue,
-                };
+                let chunk: ChatCompletionChunk = serde_json::from_str(data)?;
 
                 for choice in chunk.choices {
                     if let Some(delta_role) = choice.delta.role {
