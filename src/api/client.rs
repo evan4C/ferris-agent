@@ -92,7 +92,7 @@ impl DeepSeekClient {
         is_thinking: bool,
     ) -> Result<ChatMessage, DeepSeekError> {
         let mut byte_stream = response.bytes_stream();
-        let mut buffer = String::new();
+        let mut buffer = Vec::new();
         let mut role = String::from("assistant");
         let mut content = String::new();
         let mut reasoning_content = String::new();
@@ -101,53 +101,56 @@ impl DeepSeekClient {
 
         while let Some(chunk) = byte_stream.next().await {
             let chunk = chunk?;
-            buffer.push_str(&String::from_utf8_lossy(&chunk));
+            buffer.extend_from_slice(&chunk);
 
-            while let Some(pos) = buffer.find("\n\n") {
-                let event = buffer[..pos].to_string();
-                buffer.drain(..pos + 2);
+            while let Some(pos) = buffer.iter().position(|&b| b == b'\n') {
+                let line = String::from_utf8_lossy(&buffer[..pos])
+                    .trim_end_matches('\r')
+                    .to_string();
+                buffer.drain(..=pos);
 
-                for line in event.lines() {
-                    let Some(data) = line.strip_prefix("data: ") else {
-                        continue;
-                    };
-                    if data == "[DONE]" {
-                        continue;
+                let Some(data) = line.strip_prefix("data: ") else {
+                    continue;
+                };
+                if data == "[DONE]" {
+                    continue;
+                }
+
+                let chunk: ChatStreamChunk = serde_json::from_str(data)?;
+
+                for choice in chunk.choices {
+                    let delta = choice.delta;
+                    if let Some(delta_role) = delta.role {
+                        role = delta_role;
                     }
-
-                    let chunk: ChatStreamChunk = serde_json::from_str(data)?;
-                    for choice in chunk.choices {
-                        let delta = choice.delta;
-                        if let Some(delta_role) = delta.role {
-                            role = delta_role;
-                        }
-                        if let Some(reasoning) = delta.reasoning_content {
-                            if is_thinking {
-                                if !reasoning_started {
-                                    eprint!("Thinking: ");
-                                    reasoning_started = true;
-                                }
-                                eprint!("{}", reasoning);
-                                let _ = std::io::stderr().flush();
+                    if let Some(reasoning) = delta.reasoning_content {
+                        if is_thinking {
+                            if !reasoning_started {
+                                eprint!("Thinking: ");
+                                reasoning_started = true;
                             }
-                            reasoning_content.push_str(&reasoning);
+                            eprint!("{}", reasoning);
+                            let _ = std::io::stderr().flush();
                         }
-                        if let Some(delta_content) = delta.content {
-                            content.push_str(&delta_content);
-                        }
-                        if let Some(delta_tool_calls) = delta.tool_calls {
-                            for delta_call in delta_tool_calls {
-                                let entry = tool_calls.entry(delta_call.index).or_default();
-                                if let Some(id) = delta_call.id {
-                                    entry.id = Some(id);
+                        reasoning_content.push_str(&reasoning);
+                    }
+                    if let Some(delta_content) = delta.content {
+                        print!("{delta_content}");
+                        let _ = std::io::stdout().flush();
+                        content.push_str(&delta_content);
+                    }
+                    if let Some(delta_tool_calls) = delta.tool_calls {
+                        for delta_call in delta_tool_calls {
+                            let entry = tool_calls.entry(delta_call.index).or_default();
+                            if let Some(id) = delta_call.id {
+                                entry.id = Some(id);
+                            }
+                            if let Some(function) = delta_call.function {
+                                if let Some(name) = function.name {
+                                    entry.name.get_or_insert_with(String::new).push_str(&name);
                                 }
-                                if let Some(function) = delta_call.function {
-                                    if let Some(name) = function.name {
-                                        entry.name.get_or_insert_with(String::new).push_str(&name);
-                                    }
-                                    if let Some(arguments) = function.arguments {
-                                        entry.arguments.push_str(&arguments);
-                                    }
+                                if let Some(arguments) = function.arguments {
+                                    entry.arguments.push_str(&arguments);
                                 }
                             }
                         }
