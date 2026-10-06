@@ -82,7 +82,9 @@ impl DeepSeekClient {
             buffer.extend_from_slice(&chunk);
 
             while let Some(pos) = buffer.iter().position(|&b| b == b'\n') {
-                let line = String::from_utf8_lossy(&buffer[..pos]).trim_end_matches('\r').to_string();
+                let line = String::from_utf8_lossy(&buffer[..pos])
+                    .trim_end_matches('\r')
+                    .to_string();
                 buffer.drain(..=pos);
 
                 let Some(data) = line.strip_prefix("data: ") else {
