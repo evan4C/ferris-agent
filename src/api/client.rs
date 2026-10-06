@@ -1,7 +1,8 @@
+use crate::api::Thinking;
 use crate::api::error::DeepSeekError;
 use crate::api::request::ChatCompletionRequest;
 use crate::api::response::{ChatMessage, ChatResponse, ChatStreamChunk};
-use crate::config::SETTINGS;
+use crate::config::DeepSeekConfig;
 use crate::tool::ToolCall;
 use futures_util::StreamExt;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
@@ -10,6 +11,8 @@ use std::io::Write;
 
 pub struct DeepSeekClient {
     client: reqwest::Client,
+    base_url: String,
+    authorization: HeaderValue,
 }
 
 /// Accumulates the fragments of a single tool call as they arrive across stream chunks.
@@ -35,13 +38,17 @@ impl DeepSeekClient {
     pub async fn http_request(
         &self,
         request_body: &ChatCompletionRequest<'_>,
-        show_reasoning: bool,
     ) -> Result<ChatMessage, DeepSeekError> {
         let mut headers = HeaderMap::new();
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
         headers.insert(AUTHORIZATION, self.authorization.clone());
 
         let is_stream = request_body.stream.unwrap_or(false);
+        let is_thinking = if matches!(request_body.thinking.unwrap_or(Thinking::Disabled), Thinking::Enabled) {
+            true
+        } else {
+            false
+        };
         let request_body = serde_json::to_value(request_body)?;
 
         let response = self
@@ -62,11 +69,7 @@ impl DeepSeekClient {
         }
 
         if is_stream {
-            return self.read_stream(response).await;
-        }
-
-        if is_stream {
-            Self::handle_stream_response(response, show_reasoning).await
+            Self::handle_stream_response(response, is_thinking).await
         } else {
             let mut response = response.json::<ChatResponse>().await?;
             if response.choices.is_empty() {
@@ -75,7 +78,7 @@ impl DeepSeekClient {
                 ));
             }
             let message = response.choices.remove(0).message;
-            if show_reasoning && let Some(reasoning) = &message.reasoning_content {
+            if is_thinking && let Some(reasoning) = &message.reasoning_content {
                 eprintln!("Thinking: {}", reasoning);
             }
             Ok(message)
@@ -86,7 +89,7 @@ impl DeepSeekClient {
     /// accumulating content/tool calls into a single `ChatMessage`.
     async fn handle_stream_response(
         response: reqwest::Response,
-        show_reasoning: bool,
+        is_thinking: bool,
     ) -> Result<ChatMessage, DeepSeekError> {
         let mut byte_stream = response.bytes_stream();
         let mut buffer = String::new();
@@ -119,7 +122,7 @@ impl DeepSeekClient {
                             role = delta_role;
                         }
                         if let Some(reasoning) = delta.reasoning_content {
-                            if show_reasoning {
+                            if is_thinking {
                                 if !reasoning_started {
                                     eprint!("Thinking: ");
                                     reasoning_started = true;
@@ -153,7 +156,7 @@ impl DeepSeekClient {
             }
         }
 
-        if show_reasoning && reasoning_started {
+        if is_thinking && reasoning_started {
             eprintln!();
         }
 

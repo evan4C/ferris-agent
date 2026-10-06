@@ -25,9 +25,9 @@ pub struct Cli {
     #[arg(long, default_value_t = false)]
     pub stream: bool,
 
-    /// Show the model's reasoning (thinking) output on stderr.
+    /// Enable thinking mode and display the model's reasoning output on stderr.
     #[arg(long, default_value_t = false)]
-    pub show_reasoning: bool,
+    pub thinking: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -60,7 +60,7 @@ impl Cli {
                 .unwrap_or_else(|| Model::Custom(configured_model.into())),
             max_tokens: self.max_tokens,
             stream: self.stream,
-            show_reasoning: self.show_reasoning,
+            thinking: self.thinking,
         }
     }
 }

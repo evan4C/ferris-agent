@@ -26,7 +26,7 @@ impl Serialize for Model {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Thinking {
     Enabled,
     Disabled,
@@ -116,7 +116,7 @@ pub struct ChatCompletionRequest<'a> {
     pub model: Model,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    thinking: Option<Thinking>,
+    pub thinking: Option<Thinking>,
     reasoning_effort: ThinkingEffort,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -211,6 +211,14 @@ impl<'a> ChatCompletionRequest<'a> {
         self
     }
 
+    pub fn thinking(mut self, thinking: bool) -> Self {
+        if thinking {
+            self.thinking = Some(Thinking::Enabled);
+            self.reasoning_effort = ThinkingEffort::High;
+        }
+        self
+    }
+
     pub fn json_output(mut self) -> Self {
         self.response_format = Some(ResponseFormat::JsonObject);
         self
@@ -230,7 +238,7 @@ impl<'a> ChatCompletionRequest<'a> {
     }
 
     pub async fn create(self) -> Result<String, DeepSeekError> {
-        let message = self.client.http_request(&self, false).await?;
+        let message = self.client.http_request(&self).await?;
         Ok(message.content.unwrap_or_default())
     }
 }

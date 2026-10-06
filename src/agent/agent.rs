@@ -53,6 +53,7 @@ impl Agent {
             .chat()
             .model(self.options.model.clone())
             .stream(self.options.stream)
+            .thinking(self.options.thinking)
             .tools(self.registry.definitions());
         if let Some(max_tokens) = self.options.max_tokens {
             request = request.max_tokens(max_tokens);
@@ -62,7 +63,7 @@ impl Agent {
             request = request.messages(messages.clone());
             let response = self
                 .client
-                .http_request(&request, self.options.show_reasoning)
+                .http_request(&request)
                 .await?;
             if response.tool_calls.is_empty() {
                 let reply = response.content.unwrap_or_default();
