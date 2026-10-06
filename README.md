@@ -11,6 +11,7 @@
 - Chat with the DeepSeek API using the `deepseek-flash` and `deepseek-v4-pro` models.
 - `Conversation` stores the system prompt, user messages, assistant replies, and tool results for subsequent turns.
 - `Agent` sends model requests, handles tool calls, and returns tool results to the model. The number of tool-call rounds is limited by `agent.max_iterations`.
+- `config` manages the application configuration, including DeepSeek API settings and agent parameters. The app configuration file is located in the platform-specific user configuration directory.
 - `ToolRegistry` registers tools, generates the tool definitions required by the API, and dispatches model-issued calls.
 - Built-in tools: `read_file`, `write_file`, `bash`, and `git_status`.
 
@@ -77,27 +78,13 @@ The example program sends one request to the model and prints the final reply. I
 ## Use as a Rust Library
 
 ```rust,no_run
-use ferris_agent::config::credential;
-use ferris_agent::config::AppConfig;
-use ferris_agent::{Conversation, DeepSeekClient};
-use std::sync::Arc;
+use anyhow::Result;
+use clap::Parser;
+use ferris_agent::{Cli, app};
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-	let config = AppConfig::load()?;
-	let api_key = credential::get_api_key("deepseek")?;
-	let client = Arc::new(DeepSeekClient::new(config.deepseek, api_key)?);
-	let mut conversation =
-		Conversation::new(client).with_max_iterations(config.agent.max_iterations);
-
-	let reply = conversation.send("Read README.md and summarize it.").await?;
-	println!("{reply}");
-
-	// The next turn includes the earlier messages and tool results.
-	let follow_up = conversation.send("Make the summary shorter.").await?;
-	println!("{follow_up}");
-
-	Ok(())
+async fn main() -> Result<()> {
+    app::run(Cli::parse()).await
 }
 ```
 

@@ -24,6 +24,16 @@ pub struct ToolCall {
     pub function: ToolCallFunction,
 }
 
+impl ToolCall {
+    pub fn new(id: String, function: ToolCallFunction) -> Self {
+        Self {
+            id,
+            kind: tool_call_type(),
+            function,
+        }
+    }
+}
+
 fn tool_call_type() -> String {
     "function".to_string()
 }
