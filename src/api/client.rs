@@ -1,8 +1,7 @@
 use crate::api::Thinking;
-use crate::api::cost::ChatUsage;
 use crate::api::error::DeepSeekError;
 use crate::api::request::ChatCompletionRequest;
-use crate::api::response::{ChatMessage, ChatResponse, ChatStreamChunk};
+use crate::api::response::{ChatMessage, ChatResponse, ChatStreamChunk, ChatUsage};
 use crate::config::DeepSeekConfig;
 use crate::tool::ToolCall;
 use futures_util::StreamExt;

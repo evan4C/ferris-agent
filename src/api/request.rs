@@ -4,25 +4,7 @@ use crate::api::message::Message;
 use crate::config;
 use crate::tool::registry::ToolDefinition;
 use serde::{Serialize, ser::SerializeMap};
-
-#[derive(Clone, Debug)]
-pub enum Model {
-    Flash,
-    Pro,
-}
-
-impl Serialize for Model {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let model = match self {
-            Self::Flash => "deepseek-flash",
-            Self::Pro => "deepseek-v4-pro",
-        };
-        serializer.serialize_str(model)
-    }
-}
+use crate::api::model::Model;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Thinking {

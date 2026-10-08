@@ -1,30 +1,9 @@
-use crate::api::request::Model;
-use serde::Deserialize;
-#[derive(Clone, Copy, Debug, Default, Deserialize)]
-pub struct ChatUsage {
-    pub prompt_tokens: u32,
-    pub completion_tokens: u32,
-    pub total_tokens: u32,
-}
+use serde::Serialize;
 
-impl ChatUsage {
-    /// Estimated cost in USD for this usage, based on the given model's per-token pricing.
-    /// TODO: Consider peak vs offpeak and cached vs uncached pricing.
-    pub fn cost_usd(&self, model: &Model) -> f64 {
-        let pricing = model.pricing();
-        let input_cost = self.prompt_tokens as f64 / 1_000_000.0 * pricing.input_per_million_cached_offpeak_usd;
-        let output_cost =
-            self.completion_tokens as f64 / 1_000_000.0 * pricing.output_per_million_offpeak_usd;
-        input_cost + output_cost
-    }
-}
-
-impl std::ops::AddAssign for ChatUsage {
-    fn add_assign(&mut self, rhs: Self) {
-        self.prompt_tokens += rhs.prompt_tokens;
-        self.completion_tokens += rhs.completion_tokens;
-        self.total_tokens += rhs.total_tokens;
-    }
+#[derive(Clone, Debug)]
+pub enum Model {
+    Flash,
+    Pro,
 }
 
 /// Approximate per-million-token pricing in USD, used to estimate request cost.
@@ -35,6 +14,19 @@ pub struct ModelPricing {
     pub input_per_million_uncached_peak_usd: f64,
     pub output_per_million_offpeak_usd: f64,
     pub output_per_million_peak_usd: f64,
+}
+
+impl Serialize for Model {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let model = match self {
+            Self::Flash => "deepseek-flash",
+            Self::Pro => "deepseek-v4-pro",
+        };
+        serializer.serialize_str(model)
+    }
 }
 
 impl Model {
