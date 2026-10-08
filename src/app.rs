@@ -4,38 +4,43 @@ use std::sync::Arc;
 
 use crate::config::AppConfig;
 use crate::config::credential::get_api_key;
-use crate::{Cli, CliCommand, Conversation, DeepSeekClient};
+use crate::{Cli, CliCommand, Agent, DeepSeekClient};
 
-pub async fn run(cli: Cli) -> Result<()> {
+pub async fn exec(cli: Cli) -> Result<()> {
     if let Some(CliCommand::Init) = cli.command {
         let path = AppConfig::initialize()?;
         println!("Configuration initialized at {}", path.display());
         return Ok(());
     }
 
+    // load app configuration from config.toml
     let config = AppConfig::load()?;
+    // load API key from environment variable
     let api_key = get_api_key("deepseek")?;
-    let chat_options = cli.chat_options(&config.deepseek.model);
-    let mut conversation =
-        Conversation::new(Arc::new(DeepSeekClient::new(config.deepseek, api_key)?))
-            .with_max_iterations(config.agent.max_iterations);
+    // load chat options from cli parameters
+    let cli_options = cli.cli_options(&config.deepseek.model);
+
+    let mut agent = Agent::new(Arc::new(DeepSeekClient::new(config.deepseek, api_key)?));
+
+    agent.with_max_iterations(config.agent.max_iterations);
     if let Some(workspace) = config.tools.workspace {
-        conversation = conversation.with_workspace(workspace);
+        agent.with_workspace(workspace);
     }
-    conversation = conversation.with_options(chat_options);
+    agent.with_options(cli_options);
 
     match &cli.prompt {
         Some(prompt) => {
-            let reply = conversation.send(prompt.clone()).await?;
+            agent.add_user_message(prompt.clone());
+            let reply = agent.run().await?;
             println!("{reply}");
         }
-        None => run_repl(&mut conversation).await?,
+        None => run_repl(&mut agent).await?,
     }
 
     Ok(())
 }
 
-async fn run_repl(conversation: &mut Conversation) -> Result<()> {
+async fn run_repl(agent: &mut Agent) -> Result<()> {
     println!("Ferris Agent interactive session. Type 'exit' or 'quit' to leave.");
     let stdin = std::io::stdin();
     loop {
@@ -54,7 +59,7 @@ async fn run_repl(conversation: &mut Conversation) -> Result<()> {
             break;
         }
 
-        match conversation.send(input.to_string()).await {
+        match agent.add_user_message(input.to_string()).run().await {
             Ok(reply) => println!("{reply}"),
             Err(err) => eprintln!("Error: {err}"),
         }

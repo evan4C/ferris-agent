@@ -9,7 +9,6 @@ use serde::{Serialize, ser::SerializeMap};
 pub enum Model {
     Flash,
     Pro,
-    Custom(String),
 }
 
 impl Serialize for Model {
@@ -20,7 +19,6 @@ impl Serialize for Model {
         let model = match self {
             Self::Flash => "deepseek-flash",
             Self::Pro => "deepseek-v4-pro",
-            Self::Custom(model) => model,
         };
         serializer.serialize_str(model)
     }
