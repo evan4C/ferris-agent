@@ -9,7 +9,6 @@ use serde::{Serialize, ser::SerializeMap};
 pub enum Model {
     Flash,
     Pro,
-    Custom(String),
 }
 
 impl Serialize for Model {
@@ -20,13 +19,12 @@ impl Serialize for Model {
         let model = match self {
             Self::Flash => "deepseek-flash",
             Self::Pro => "deepseek-v4-pro",
-            Self::Custom(model) => model,
         };
         serializer.serialize_str(model)
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Thinking {
     Enabled,
     Disabled,
@@ -116,7 +114,7 @@ pub struct ChatCompletionRequest<'a> {
     pub model: Model,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    thinking: Option<Thinking>,
+    pub thinking: Option<Thinking>,
     reasoning_effort: ThinkingEffort,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -208,6 +206,14 @@ impl<'a> ChatCompletionRequest<'a> {
 
     pub fn stream(mut self, enabled: bool) -> Self {
         self.stream = Some(enabled);
+        self
+    }
+
+    pub fn thinking(mut self, thinking: bool) -> Self {
+        if thinking {
+            self.thinking = Some(Thinking::Enabled);
+            self.reasoning_effort = ThinkingEffort::High;
+        }
         self
     }
 

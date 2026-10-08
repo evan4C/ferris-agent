@@ -1,7 +1,6 @@
 use clap::{Parser, Subcommand, ValueEnum};
 
 use crate::api::Model;
-use crate::conversation::ChatOptions;
 
 /// Ferris Agent — a tool-using LLM chat agent.
 #[derive(Debug, Parser)]
@@ -24,6 +23,10 @@ pub struct Cli {
     /// Enable streaming responses.
     #[arg(long, default_value_t = false)]
     pub stream: bool,
+
+    /// Enable thinking mode and display the model's reasoning output on stderr.
+    #[arg(long, default_value_t = false)]
+    pub thinking: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -47,15 +50,37 @@ impl From<ModelArg> for Model {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct CliOptions {
+    pub model: Model,
+    pub max_tokens: Option<u32>,
+    pub stream: bool,
+    pub thinking: bool,
+}
+
+impl CliOptions {
+    pub fn default() -> Self {
+        Self {
+            model: Model::Flash,
+            max_tokens: None,
+            stream: false,
+            thinking: false,
+        }
+    }
+}
+
 impl Cli {
-    pub fn chat_options(&self, configured_model: &str) -> ChatOptions {
-        ChatOptions {
-            model: self
-                .model
-                .map(Into::into)
-                .unwrap_or_else(|| Model::Custom(configured_model.into())),
+    pub fn cli_options(&self, config_toml_model: &str) -> CliOptions {
+        let configured_model = if config_toml_model.contains("pro") {
+            Model::Pro
+        } else {
+            Model::Flash
+        };
+        CliOptions {
+            model: self.model.map(Into::into).unwrap_or(configured_model),
             max_tokens: self.max_tokens,
             stream: self.stream,
+            thinking: self.thinking,
         }
     }
 }

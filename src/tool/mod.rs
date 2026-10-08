@@ -25,11 +25,11 @@ pub struct ToolCall {
 }
 
 impl ToolCall {
-    pub fn new(id: String, function: ToolCallFunction) -> Self {
+    pub fn new(id: String, name: String, arguments: String) -> Self {
         Self {
             id,
             kind: tool_call_type(),
-            function,
+            function: ToolCallFunction { name, arguments },
         }
     }
 }
