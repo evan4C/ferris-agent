@@ -1,5 +1,5 @@
 [deepseek]
-model = "deepseek-chat"
+model = "deepseek-flash"
 base_url = "https://api.deepseek.com/chat/completions"
 
 [agent]
