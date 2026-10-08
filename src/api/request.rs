@@ -206,6 +206,9 @@ impl<'a> ChatCompletionRequest<'a> {
 
     pub fn stream(mut self, enabled: bool) -> Self {
         self.stream = Some(enabled);
+        self.stream_options = enabled.then_some(StreamOptions {
+            include_usage: true,
+        });
         self
     }
 

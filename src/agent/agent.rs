@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::api::{ChatUsage, DeepSeekClient, DeepSeekError, Message};
+use crate::api::{ChatUsage, DeepSeekClient, DeepSeekError, Message, Model};
 use crate::cli::CliOptions;
 use crate::tool::{ToolContext, registry::ToolRegistry};
 
@@ -62,6 +62,10 @@ impl Agent {
     /// Read-only view of the accumulated history.
     pub fn history(&self) -> &[Message] {
         &self.messages
+    }
+
+    pub fn get_model(&self) -> &Model {
+        &self.options.model
     }
 
     /// Drops all turns, keeping only the initial system prompt.
