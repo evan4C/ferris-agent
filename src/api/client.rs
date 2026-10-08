@@ -44,7 +44,10 @@ impl DeepSeekClient {
         headers.insert(AUTHORIZATION, self.authorization.clone());
 
         let is_stream = request_body.stream.unwrap_or(false);
-        let is_thinking = if matches!(request_body.thinking.unwrap_or(Thinking::Disabled), Thinking::Enabled) {
+        let is_thinking = if matches!(
+            request_body.thinking.unwrap_or(Thinking::Disabled),
+            Thinking::Enabled
+        ) {
             true
         } else {
             false

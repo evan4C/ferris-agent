@@ -77,10 +77,7 @@ impl Cli {
             Model::Flash
         };
         CliOptions {
-            model: self
-                .model
-                .map(Into::into)
-                .unwrap_or(configured_model),
+            model: self.model.map(Into::into).unwrap_or(configured_model),
             max_tokens: self.max_tokens,
             stream: self.stream,
             thinking: self.thinking,

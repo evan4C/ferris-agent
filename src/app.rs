@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::config::AppConfig;
 use crate::config::credential::get_api_key;
-use crate::{Cli, CliCommand, Agent, DeepSeekClient};
+use crate::{Agent, Cli, CliCommand, DeepSeekClient};
 
 pub async fn exec(cli: Cli) -> Result<()> {
     if let Some(CliCommand::Init) = cli.command {

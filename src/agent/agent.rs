@@ -81,10 +81,7 @@ impl Agent {
 
         loop {
             request = request.messages(self.messages.clone());
-            let response = self
-                .client
-                .http_request(&request)
-                .await?;
+            let response = self.client.http_request(&request).await?;
             if response.tool_calls.is_empty() {
                 let reply = response.content.unwrap_or_default();
                 self.messages.push(Message::assistant(reply.clone()));
@@ -114,7 +111,8 @@ impl Agent {
                 } else {
                     result.content
                 };
-                self.messages.push(Message::tool_result(tool_call_id, content));
+                self.messages
+                    .push(Message::tool_result(tool_call_id, content));
             }
         }
     }
