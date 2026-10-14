@@ -14,6 +14,7 @@
 - `config` manages the application configuration, including DeepSeek API settings and agent parameters. The app configuration file is located in the platform-specific user configuration directory.
 - `ToolRegistry` registers tools, generates the tool definitions required by the API, and dispatches model-issued calls.
 - Built-in tools: `read_file`, `write_file`, `bash`, and `git_status`.
+- Assistant Markdown replies are rendered in the terminal with `termimad`.
 
 ## Architecture
 

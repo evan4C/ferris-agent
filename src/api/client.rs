@@ -151,8 +151,6 @@ impl DeepSeekClient {
                         reasoning_content.push_str(&reasoning);
                     }
                     if let Some(delta_content) = delta.content {
-                        print!("{delta_content}");
-                        let _ = std::io::stdout().flush();
                         content.push_str(&delta_content);
                     }
                     if let Some(delta_tool_calls) = delta.tool_calls {
