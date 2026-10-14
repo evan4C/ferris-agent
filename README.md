@@ -9,8 +9,8 @@
 ## Features
 
 - Chat with the DeepSeek API using the `deepseek-flash` and `deepseek-v4-pro` models.
-- `Conversation` stores the system prompt, user messages, assistant replies, and tool results for subsequent turns.
-- `Agent` sends model requests, handles tool calls, and returns tool results to the model. The number of tool-call rounds is limited by `agent.max_iterations`.
+- `Agent` stores message history, sends model requests, handles tool calls, and returns tool results to the model. The number of tool-call rounds is limited by `agent.max_iterations`.
+- `ChatBackend` abstracts a model completion; the production implementation uses `DeepSeekClient`, while tests can provide a scripted backend.
 - `config` manages the application configuration, including DeepSeek API settings and agent parameters. The app configuration file is located in the platform-specific user configuration directory.
 - `ToolRegistry` registers tools, generates the tool definitions required by the API, and dispatches model-issued calls.
 - Built-in tools: `read_file`, `write_file`, `bash`, and `git_status`.
@@ -22,19 +22,17 @@
 User input
    │
    ▼
-Conversation ── stores the full message history
-   │
-   ▼
-Agent ── sends model requests and drives the tool-call loop
-   ├── DeepSeekClient ── sends Chat Completions HTTP requests
+Agent ── stores message history and drives the tool-call loop
+   ├── ChatBackend ── model-completion interface
+   │   └── DeepSeekClient ── sends Chat Completions HTTP requests
    └── ToolRegistry ── executes tools and returns results
-		  ├── Files: read_file / write_file
-		  ├── Shell: bash
-		  └── Git: git_status
+       ├── Files: read_file / write_file
+       ├── Shell: bash
+       └── Git: git_status
 ```
 
-- **`Conversation`** manages a conversation's message history and provides `send`, `history`, and `reset`.
-- **`Agent`** coordinates model requests and the tool-call loop; it does not own persistent conversation history.
+- **`Agent`** manages message history with `add_user_message`, `history`, and `reset_history`, and coordinates model requests and tool execution.
+- **`ChatBackend`** provides the completion interface used by the agent. `DeepSeekClient` implements it for real API requests; tests can inject a fake backend with `Agent::with_backend`.
 - **`DeepSeekClient`** sends requests to the configured DeepSeek endpoint and parses responses.
 - **`ToolRegistry`** manages available tools and their dispatch; `ToolContext` provides tools with a working directory and environment variables.
 
@@ -85,34 +83,42 @@ use ferris_agent::{Cli, app};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    app::run(Cli::parse()).await
+    app::exec(Cli::parse()).await
 }
 ```
 
-To enable additional tools, build a registry and pass it to the conversation:
+To use the agent directly, create a client and pass a tool registry:
 
 ```rust,no_run
-use ferris_agent::config::credential;
-use ferris_agent::config::AppConfig;
-use ferris_agent::{Conversation, DeepSeekClient};
+use anyhow::Result;
+use ferris_agent::config::{AppConfig, credential};
+use ferris_agent::{Agent, DeepSeekClient};
 use ferris_agent::tool::registry::ToolRegistry;
 use std::sync::Arc;
 
-let config = AppConfig::load()?;
-let api_key = credential::get_api_key("deepseek")?;
-let client = Arc::new(DeepSeekClient::new(config.deepseek, api_key)?);
-let registry = ToolRegistry::builder()
-	.filesystem()
-	.shell()
-	.git()
-	.build();
+#[tokio::main]
+async fn main() -> Result<()> {
+    let config = AppConfig::load()?;
+    let api_key = credential::get_api_key("deepseek")?;
+    let client = Arc::new(DeepSeekClient::new(config.deepseek, api_key)?);
+    let registry = ToolRegistry::builder()
+        .filesystem()
+        .shell()
+        .git()
+        .build();
 
-let conversation = Conversation::new(client)
-	.with_max_iterations(config.agent.max_iterations)
-	.with_tool_registry(registry);
+    let mut agent = Agent::new(client);
+    agent
+        .with_max_iterations(config.agent.max_iterations)
+        .with_tool_registry(registry)
+        .add_user_message("Summarize the current Git status.".into());
+    let reply = agent.run().await?;
+    println!("{}", reply.content);
+    Ok(())
+}
 ```
 
-`history()` provides read-only access to the message history. `reset()` clears the conversation turns while keeping the initial system prompt. When changing the tool registry, explicitly include every tool you want to keep enabled.
+`history()` provides read-only access to the agent's message history. `reset_history()` clears the turns while keeping the initial system prompt. When changing the tool registry, explicitly include every tool you want to keep enabled.
 
 ## Tools and Security
 
@@ -129,8 +135,12 @@ To create a new release, tag the commit with a version number following the patt
 ### Running Tests
 
 ```sh
-cargo test
+cargo test --all
+cargo fmt --all -- --check
+cargo clippy --all-targets
 ```
+
+The test suite does not require API credentials or external services. Integration tests use a local HTTP server for API contracts and a scripted backend for agent workflows. See the [testing guide](docs/testing.md) for test layers and guidance for adding coverage.
 
 ### Project Structure
 
@@ -141,6 +151,11 @@ src/
 ├── agent/        # Agent orchestration and tool-call loop
 ├── api/          # DeepSeek client, requests, responses, and message types
 ├── config/       # Configuration loading and system prompt
-├── conversation/ # Multi-turn conversations and options
 └── tool/         # Tool interface, registry, and built-in tools
+tests/
+├── agent_workflows.rs # Deterministic agent workflow tests
+├── api_contract.rs    # Local HTTP API contract tests
+└── support/           # Shared test-only helpers
+docs/
+└── testing.md         # Testing guide and conventions
 ```

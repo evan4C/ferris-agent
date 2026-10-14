@@ -1,3 +1,3 @@
 pub mod agent;
 
-pub use agent::{Agent, AgentReply};
+pub use agent::{Agent, AgentReply, AgentRequest, ChatBackend};
