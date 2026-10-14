@@ -119,8 +119,12 @@ let conversation = Conversation::new(client)
 ## 开发
 
 ```sh
-cargo test
+cargo test --all
+cargo fmt --all -- --check
+cargo clippy --all-targets
 ```
+
+测试分层、API 本地模拟及新增测试的说明请参阅[测试指南](docs/testing.md)。
 
 主要代码位于 `src/`：
 

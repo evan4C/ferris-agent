@@ -2,9 +2,14 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::api::{ChatUsage, DeepSeekClient, DeepSeekError, Message, Model};
+use async_trait::async_trait;
+
+use crate::api::{ApiTurn, ChatUsage, DeepSeekClient, DeepSeekError, Message, Model};
 use crate::cli::CliOptions;
-use crate::tool::{ToolContext, registry::ToolRegistry};
+use crate::tool::{
+    ToolContext,
+    registry::{ToolDefinition, ToolRegistry},
+};
 
 /// The final assistant reply for a `run`, plus the token usage billed across all rounds.
 pub struct AgentReply {
@@ -12,8 +17,24 @@ pub struct AgentReply {
     pub usage: Option<ChatUsage>,
 }
 
+/// Abstraction over one model completion, replaceable by deterministic test backends.
+#[async_trait]
+pub trait ChatBackend: Send + Sync {
+    async fn complete(&self, request: AgentRequest) -> Result<ApiTurn, DeepSeekError>;
+}
+
+/// The model options and conversation state for one completion.
+pub struct AgentRequest {
+    pub model: Model,
+    pub stream: bool,
+    pub thinking: bool,
+    pub max_tokens: Option<u32>,
+    pub messages: Vec<Message>,
+    pub tools: Vec<ToolDefinition>,
+}
+
 pub struct Agent {
-    client: Arc<DeepSeekClient>,
+    client: Arc<dyn ChatBackend>,
     messages: Vec<Message>,
     registry: ToolRegistry,
     context: ToolContext,
@@ -23,6 +44,10 @@ pub struct Agent {
 
 impl Agent {
     pub fn new(client: Arc<DeepSeekClient>) -> Self {
+        Self::with_backend(client)
+    }
+
+    pub fn with_backend(client: Arc<dyn ChatBackend>) -> Self {
         let working_dir = std::env::current_dir().unwrap_or_else(|_| ".".into());
         Self {
             client,
@@ -78,21 +103,19 @@ impl Agent {
     pub async fn run(&mut self) -> Result<AgentReply, DeepSeekError> {
         let mut tool_rounds = 0;
         let mut total_usage: Option<ChatUsage> = None;
-        let mut request = self
-            .client
-            .chat()
-            .model(self.options.model.clone())
-            .stream(self.options.stream)
-            .thinking(self.options.thinking)
-            .tools(self.registry.definitions());
-
-        if let Some(max_tokens) = self.options.max_tokens {
-            request = request.max_tokens(max_tokens);
-        }
 
         loop {
-            request = request.messages(self.messages.clone());
-            let turn = self.client.http_request(&request).await?;
+            let turn = self
+                .client
+                .complete(AgentRequest {
+                    model: self.options.model.clone(),
+                    stream: self.options.stream,
+                    thinking: self.options.thinking,
+                    max_tokens: self.options.max_tokens,
+                    messages: self.messages.clone(),
+                    tools: self.registry.definitions(),
+                })
+                .await?;
             if let Some(usage) = turn.usage {
                 match &mut total_usage {
                     Some(acc) => *acc += usage,

@@ -1,3 +1,4 @@
+use crate::agent::{AgentRequest, ChatBackend};
 use crate::api::Thinking;
 use crate::api::error::DeepSeekError;
 use crate::api::request::ChatCompletionRequest;
@@ -10,6 +11,7 @@ use std::collections::BTreeMap;
 use std::io::{IsTerminal, Write};
 
 /// A single model turn along with the token usage billed for it.
+#[derive(Debug)]
 pub struct ApiTurn {
     pub message: ChatMessage,
     pub usage: Option<ChatUsage>,
@@ -224,5 +226,23 @@ impl DeepSeekClient {
 
     pub fn chat(&self) -> ChatCompletionRequest<'_> {
         ChatCompletionRequest::new(self)
+    }
+}
+
+#[async_trait::async_trait]
+impl ChatBackend for DeepSeekClient {
+    async fn complete(&self, request: AgentRequest) -> Result<ApiTurn, DeepSeekError> {
+        let max_tokens = request.max_tokens;
+        let mut chat_request = self
+            .chat()
+            .model(request.model)
+            .stream(request.stream)
+            .thinking(request.thinking)
+            .tools(request.tools)
+            .messages(request.messages);
+        if let Some(max_tokens) = max_tokens {
+            chat_request = chat_request.max_tokens(max_tokens);
+        }
+        self.http_request(&chat_request).await
     }
 }

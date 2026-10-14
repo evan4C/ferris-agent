@@ -129,8 +129,12 @@ To create a new release, tag the commit with a version number following the patt
 ### Running Tests
 
 ```sh
-cargo test
+cargo test --all
+cargo fmt --all -- --check
+cargo clippy --all-targets
 ```
+
+See the [testing guide](docs/testing.md) for test layers, local HTTP/API testing, and guidance for adding coverage.
 
 ### Project Structure
 
