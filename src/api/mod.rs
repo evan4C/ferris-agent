@@ -1,14 +1,14 @@
 pub mod client;
 pub mod error;
 pub mod message;
+pub mod model;
 pub mod request;
 pub mod response;
-pub mod model;
 
 pub use client::{ApiTurn, DeepSeekClient};
-pub use model::{Model, ModelPricing};
 pub use error::DeepSeekError;
 pub use message::{Message, Role};
+pub use model::{Model, ModelPricing};
 pub use request::{
     ChatCompletionNamedToolChoice, ChatCompletionNamedToolChoiceFunction, ChatCompletionRequest,
     ChatCompletionToolChoice, ResponseFormat, Thinking, ThinkingEffort, ToolChoice,

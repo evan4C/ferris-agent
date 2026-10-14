@@ -1,10 +1,10 @@
 use crate::api::client::DeepSeekClient;
 use crate::api::error::DeepSeekError;
 use crate::api::message::Message;
+use crate::api::model::Model;
 use crate::config;
 use crate::tool::registry::ToolDefinition;
 use serde::{Serialize, ser::SerializeMap};
-use crate::api::model::Model;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Thinking {

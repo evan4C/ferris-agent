@@ -86,7 +86,8 @@ impl ChatUsage {
     /// TODO: Consider peak vs offpeak and cached vs uncached pricing.
     pub fn cost_usd(&self, model: &Model) -> f64 {
         let pricing = model.pricing();
-        let input_cost = self.prompt_tokens as f64 / 1_000_000.0 * pricing.input_per_million_cached_offpeak_usd;
+        let input_cost =
+            self.prompt_tokens as f64 / 1_000_000.0 * pricing.input_per_million_cached_offpeak_usd;
         let output_cost =
             self.completion_tokens as f64 / 1_000_000.0 * pricing.output_per_million_offpeak_usd;
         input_cost + output_cost
