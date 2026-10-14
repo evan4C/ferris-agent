@@ -47,7 +47,6 @@ pub struct ToolConfig {
 }
 
 impl AppConfig {
-
     // Returns the path to the configuration directory.
     pub fn config_dir() -> Result<PathBuf, ConfigError> {
         ProjectDirs::from("", "", "ferris-agent")
