@@ -47,6 +47,7 @@ pub struct ToolConfig {
 }
 
 impl AppConfig {
+    // Returns the path to the configuration directory.
     pub fn config_dir() -> Result<PathBuf, ConfigError> {
         ProjectDirs::from("", "", "ferris-agent")
             .map(|dirs| dirs.config_dir().to_path_buf())
@@ -88,6 +89,7 @@ impl AppConfig {
         Ok(())
     }
 
+    // Initializes the configuration file with default values if it does not exist.
     pub fn initialize() -> Result<PathBuf, ConfigError> {
         let path = Self::config_path()?;
         fs::create_dir_all(path.parent().ok_or(ConfigError::DirectoryUnavailable)?)?;
@@ -111,7 +113,7 @@ impl AppConfig {
 impl Default for DeepSeekConfig {
     fn default() -> Self {
         Self {
-            model: "deepseek-chat".into(),
+            model: "deepseek-flash".into(),
             base_url: "https://api.deepseek.com/chat/completions".into(),
         }
     }
@@ -129,7 +131,7 @@ mod tests {
 
     #[test]
     fn defaults_are_available_without_a_config_file() {
-        assert_eq!(AppConfig::default().deepseek.model, "deepseek-chat");
+        assert_eq!(AppConfig::default().deepseek.model, "deepseek-flash");
         assert_eq!(AppConfig::default().agent.max_iterations, 10);
     }
 

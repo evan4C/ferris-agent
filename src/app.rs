@@ -2,6 +2,7 @@ use anyhow::Result;
 use colored::Colorize;
 use std::io::Write;
 use std::sync::Arc;
+use termimad::MadSkin;
 
 use crate::api::{ChatUsage, Model};
 use crate::config::AppConfig;
@@ -78,7 +79,7 @@ fn print_reply(reply: &str) {
     let divider = "─".repeat(60).bright_black();
     println!();
     println!("{}", divider);
-    println!("{}", reply.trim());
+    MadSkin::default().print_text(reply.trim());
     println!("{}", divider);
 }
 

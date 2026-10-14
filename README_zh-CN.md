@@ -10,6 +10,7 @@
 - `config` 管理应用配置，包括 DeepSeek API 设置和 Agent 参数。app 配置文件位于平台对应的用户配置目录中。
 - `ToolRegistry` 注册工具、生成 API 所需的工具定义，并分发模型发出的调用。
 - 内置工具：`read_file`、`write_file`、`bash` 和 `git_status`。
+- 使用 `termimad` 在终端中渲染助手的 Markdown 回复。
 
 ## 架构
 
