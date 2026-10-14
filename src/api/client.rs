@@ -1,13 +1,19 @@
 use crate::api::Thinking;
 use crate::api::error::DeepSeekError;
 use crate::api::request::ChatCompletionRequest;
-use crate::api::response::{ChatMessage, ChatResponse, ChatStreamChunk};
+use crate::api::response::{ChatMessage, ChatResponse, ChatStreamChunk, ChatUsage};
 use crate::config::DeepSeekConfig;
 use crate::tool::ToolCall;
 use futures_util::StreamExt;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
 use std::collections::BTreeMap;
 use std::io::Write;
+
+/// A single model turn along with the token usage billed for it.
+pub struct ApiTurn {
+    pub message: ChatMessage,
+    pub usage: Option<ChatUsage>,
+}
 
 pub struct DeepSeekClient {
     client: reqwest::Client,
@@ -38,7 +44,7 @@ impl DeepSeekClient {
     pub async fn http_request(
         &self,
         request_body: &ChatCompletionRequest<'_>,
-    ) -> Result<ChatMessage, DeepSeekError> {
+    ) -> Result<ApiTurn, DeepSeekError> {
         let mut headers = HeaderMap::new();
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
         headers.insert(AUTHORIZATION, self.authorization.clone());
@@ -84,7 +90,10 @@ impl DeepSeekClient {
             if is_thinking && let Some(reasoning) = &message.reasoning_content {
                 eprintln!("Thinking: {}", reasoning);
             }
-            Ok(message)
+            Ok(ApiTurn {
+                message,
+                usage: response.usage,
+            })
         }
     }
 
@@ -93,7 +102,7 @@ impl DeepSeekClient {
     async fn handle_stream_response(
         response: reqwest::Response,
         is_thinking: bool,
-    ) -> Result<ChatMessage, DeepSeekError> {
+    ) -> Result<ApiTurn, DeepSeekError> {
         let mut byte_stream = response.bytes_stream();
         let mut buffer = Vec::new();
         let mut role = String::from("assistant");
@@ -101,6 +110,7 @@ impl DeepSeekClient {
         let mut reasoning_content = String::new();
         let mut reasoning_started = false;
         let mut tool_calls: BTreeMap<usize, PartialToolCall> = BTreeMap::new();
+        let mut usage = None;
 
         while let Some(chunk) = byte_stream.next().await {
             let chunk = chunk?;
@@ -120,6 +130,9 @@ impl DeepSeekClient {
                 }
 
                 let chunk: ChatStreamChunk = serde_json::from_str(data)?;
+                if chunk.usage.is_some() {
+                    usage = chunk.usage;
+                }
 
                 for choice in chunk.choices {
                     let delta = choice.delta;
@@ -177,7 +190,7 @@ impl DeepSeekClient {
             })
             .collect();
 
-        Ok(ChatMessage {
+        let message = ChatMessage {
             role,
             content: if content.is_empty() {
                 None
@@ -190,7 +203,8 @@ impl DeepSeekClient {
                 Some(reasoning_content)
             },
             tool_calls,
-        })
+        };
+        Ok(ApiTurn { message, usage })
     }
 
     pub fn chat(&self) -> ChatCompletionRequest<'_> {

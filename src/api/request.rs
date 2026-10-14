@@ -1,28 +1,10 @@
 use crate::api::client::DeepSeekClient;
 use crate::api::error::DeepSeekError;
 use crate::api::message::Message;
+use crate::api::model::Model;
 use crate::config;
 use crate::tool::registry::ToolDefinition;
 use serde::{Serialize, ser::SerializeMap};
-
-#[derive(Clone, Debug)]
-pub enum Model {
-    Flash,
-    Pro,
-}
-
-impl Serialize for Model {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let model = match self {
-            Self::Flash => "deepseek-flash",
-            Self::Pro => "deepseek-v4-pro",
-        };
-        serializer.serialize_str(model)
-    }
-}
 
 #[derive(Debug, Clone, Copy)]
 pub enum Thinking {
@@ -206,6 +188,9 @@ impl<'a> ChatCompletionRequest<'a> {
 
     pub fn stream(mut self, enabled: bool) -> Self {
         self.stream = Some(enabled);
+        self.stream_options = enabled.then_some(StreamOptions {
+            include_usage: true,
+        });
         self
     }
 
@@ -236,7 +221,7 @@ impl<'a> ChatCompletionRequest<'a> {
     }
 
     pub async fn create(self) -> Result<String, DeepSeekError> {
-        let message = self.client.http_request(&self).await?;
-        Ok(message.content.unwrap_or_default())
+        let turn = self.client.http_request(&self).await?;
+        Ok(turn.message.content.unwrap_or_default())
     }
 }

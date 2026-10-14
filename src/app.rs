@@ -1,11 +1,14 @@
 use anyhow::Result;
+use colored::Colorize;
 use std::io::Write;
 use std::sync::Arc;
 
+use crate::api::{ChatUsage, Model};
 use crate::config::AppConfig;
 use crate::config::credential::get_api_key;
 use crate::{Agent, Cli, CliCommand, DeepSeekClient};
 
+/// Executes the application based on the provided command-line interface (CLI) input.
 pub async fn exec(cli: Cli) -> Result<()> {
     if let Some(CliCommand::Init) = cli.command {
         let path = AppConfig::initialize()?;
@@ -30,9 +33,9 @@ pub async fn exec(cli: Cli) -> Result<()> {
 
     match &cli.prompt {
         Some(prompt) => {
-            agent.add_user_message(prompt.clone());
-            let reply = agent.run().await?;
-            println!("{reply}");
+            let reply = agent.add_user_message(prompt.clone()).run().await?;
+            print_reply(&reply.content);
+            print_usage(reply.usage.as_ref(), &agent.get_model());
         }
         None => run_repl(&mut agent).await?,
     }
@@ -60,9 +63,38 @@ async fn run_repl(agent: &mut Agent) -> Result<()> {
         }
 
         match agent.add_user_message(input.to_string()).run().await {
-            Ok(reply) => println!("{reply}"),
+            Ok(reply) => {
+                print_reply(&reply.content);
+                print_usage(reply.usage.as_ref(), &agent.get_model());
+            }
             Err(err) => eprintln!("Error: {err}"),
         }
     }
     Ok(())
+}
+
+/// Prints the assistant's reply inside a bordered block.
+fn print_reply(reply: &str) {
+    let divider = "─".repeat(60).bright_black();
+    println!();
+    println!("{}", divider);
+    println!("{}", reply.trim());
+    println!("{}", divider);
+}
+
+/// Prints token usage and estimated cost for the most recent turn, if reported.
+fn print_usage(usage: Option<&ChatUsage>, model: &Model) {
+    let Some(usage) = usage else { return };
+    let cost = usage.cost_usd(model);
+    println!(
+        "{} {} {} {} {} {} {} {}",
+        "tokens:".bright_black(),
+        "prompt".dimmed(),
+        usage.prompt_tokens.to_string().yellow(),
+        "completion".dimmed(),
+        usage.completion_tokens.to_string().yellow(),
+        "total".dimmed(),
+        usage.total_tokens.to_string().yellow(),
+        format!("(${:.6})", cost).green().bold(),
+    );
 }

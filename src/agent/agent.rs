@@ -2,9 +2,15 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::api::{DeepSeekClient, DeepSeekError, Message};
+use crate::api::{ChatUsage, DeepSeekClient, DeepSeekError, Message, Model};
 use crate::cli::CliOptions;
 use crate::tool::{ToolContext, registry::ToolRegistry};
+
+/// The final assistant reply for a `run`, plus the token usage billed across all rounds.
+pub struct AgentReply {
+    pub content: String,
+    pub usage: Option<ChatUsage>,
+}
 
 pub struct Agent {
     client: Arc<DeepSeekClient>,
@@ -58,6 +64,10 @@ impl Agent {
         &self.messages
     }
 
+    pub fn get_model(&self) -> &Model {
+        &self.options.model
+    }
+
     /// Drops all turns, keeping only the initial system prompt.
     pub fn reset_history(&mut self) {
         self.messages
@@ -65,8 +75,9 @@ impl Agent {
     }
 
     /// main agent loop that handles tool calls and responses.
-    pub async fn run(&mut self) -> Result<String, DeepSeekError> {
+    pub async fn run(&mut self) -> Result<AgentReply, DeepSeekError> {
         let mut tool_rounds = 0;
+        let mut total_usage: Option<ChatUsage> = None;
         let mut request = self
             .client
             .chat()
@@ -81,11 +92,21 @@ impl Agent {
 
         loop {
             request = request.messages(self.messages.clone());
-            let response = self.client.http_request(&request).await?;
-            if response.tool_calls.is_empty() {
-                let reply = response.content.unwrap_or_default();
+            let turn = self.client.http_request(&request).await?;
+            if let Some(usage) = turn.usage {
+                match &mut total_usage {
+                    Some(acc) => *acc += usage,
+                    None => total_usage = Some(usage),
+                }
+            }
+
+            if turn.message.tool_calls.is_empty() {
+                let reply = turn.message.content.unwrap_or_default();
                 self.messages.push(Message::assistant(reply.clone()));
-                return Ok(reply);
+                return Ok(AgentReply {
+                    content: reply,
+                    usage: total_usage,
+                });
             }
 
             if tool_rounds >= self.max_iterations {
@@ -96,12 +117,12 @@ impl Agent {
             tool_rounds += 1;
 
             self.messages.push(Message::assistant_tool_calls(
-                response.content,
-                response.tool_calls.clone(),
+                turn.message.content,
+                turn.message.tool_calls.clone(),
             ));
             let results = self
                 .registry
-                .dispatch_many(&self.context, &response.tool_calls)
+                .dispatch_many(&self.context, &turn.message.tool_calls)
                 .await
                 .map_err(|error| DeepSeekError::Api(format!("Tool execution failed: {error}")))?;
 
