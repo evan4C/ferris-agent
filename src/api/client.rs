@@ -7,7 +7,7 @@ use crate::tool::ToolCall;
 use futures_util::StreamExt;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
 use std::collections::BTreeMap;
-use std::io::Write;
+use std::io::{IsTerminal, Write};
 
 /// A single model turn along with the token usage billed for it.
 pub struct ApiTurn {
@@ -109,6 +109,8 @@ impl DeepSeekClient {
         let mut content = String::new();
         let mut reasoning_content = String::new();
         let mut reasoning_started = false;
+        let mut raw_output_started = false;
+        let clear_raw_output = std::io::stdout().is_terminal();
         let mut tool_calls: BTreeMap<usize, PartialToolCall> = BTreeMap::new();
         let mut usage = None;
 
@@ -151,6 +153,15 @@ impl DeepSeekClient {
                         reasoning_content.push_str(&reasoning);
                     }
                     if let Some(delta_content) = delta.content {
+                        // save the raw output position before printing the delta content
+                        if !delta_content.is_empty() && clear_raw_output && !raw_output_started {
+                            print!("\x1b[s");
+                            raw_output_started = true;
+                        }
+
+                        // print the delta content
+                        print!("{delta_content}");
+                        let _ = std::io::stdout().flush();
                         content.push_str(&delta_content);
                     }
                     if let Some(delta_tool_calls) = delta.tool_calls {
@@ -175,6 +186,12 @@ impl DeepSeekClient {
 
         if is_thinking && reasoning_started {
             eprintln!();
+        }
+
+        // restore the raw output position to clean the terminal before rendering the final markdown content
+        if raw_output_started {
+            print!("\x1b[u\x1b[J");
+            let _ = std::io::stdout().flush();
         }
 
         let tool_calls = tool_calls
