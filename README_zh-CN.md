@@ -5,8 +5,8 @@
 ## 功能
 
 - 通过 DeepSeek API 进行对话，支持 `deepseek-flash` 和 `deepseek-v4-pro` 模型。
-- `Conversation` 保存系统提示词、用户消息、助手回复和工具调用结果，供后续轮次继续使用。
-- `Agent` 负责请求模型、处理工具调用并将工具结果交回模型；工具调用轮数由 `agent.max_iterations` 限制。
+- `Agent` 保存消息历史、请求模型、处理工具调用并将工具结果交回模型；工具调用轮数由 `agent.max_iterations` 限制。
+- `ChatBackend` 抽象单次模型请求：生产环境使用 `DeepSeekClient`，测试可注入脚本化后端。
 - `config` 管理应用配置，包括 DeepSeek API 设置和 Agent 参数。app 配置文件位于平台对应的用户配置目录中。
 - `ToolRegistry` 注册工具、生成 API 所需的工具定义，并分发模型发出的调用。
 - 内置工具：`read_file`、`write_file`、`bash` 和 `git_status`。
@@ -18,19 +18,17 @@
 用户输入
    │
    ▼
-Conversation ── 保存完整消息历史
-   │
-   ▼
-Agent ── 请求模型、驱动工具调用循环
-   ├── DeepSeekClient ── 发送 Chat Completions HTTP 请求
+Agent ── 保存消息历史并驱动工具调用循环
+   ├── ChatBackend ── 模型请求接口
+   │   └── DeepSeekClient ── 发送 Chat Completions HTTP 请求
    └── ToolRegistry ── 执行工具并返回结果
-          ├── 文件：read_file / write_file
-          ├── Shell：bash
-          └── Git：git_status
+       ├── 文件：read_file / write_file
+       ├── Shell：bash
+       └── Git：git_status
 ```
 
-- **`Conversation`** 管理一次会话的消息历史，并提供 `send`、`history` 和 `reset`。
-- **`Agent`** 协调模型请求和工具调用循环，不负责长期保存会话历史。
+- **`Agent`** 通过 `add_user_message`、`history` 和 `reset_history` 管理消息历史，并协调模型请求与工具执行。
+- **`ChatBackend`** 提供 Agent 使用的模型请求接口。`DeepSeekClient` 实现真实 API 请求；测试可通过 `Agent::with_backend` 注入模拟后端。
 - **`DeepSeekClient`** 负责向配置的 DeepSeek endpoint 发送请求并解析响应。
 - **`ToolRegistry`** 管理可用工具及其调用；`ToolContext` 向工具提供工作目录和环境变量。
 
@@ -81,34 +79,42 @@ use ferris_agent::{Cli, app};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    app::run(Cli::parse()).await
+    app::exec(Cli::parse()).await
 }
 ```
 
-需要其他工具时，构造注册表并传入会话：
+如需直接使用 Agent，创建客户端并传入工具注册表：
 
 ```rust,no_run
-use ferris_agent::config::credential;
-use ferris_agent::config::AppConfig;
-use ferris_agent::{Conversation, DeepSeekClient};
+use anyhow::Result;
+use ferris_agent::config::{AppConfig, credential};
+use ferris_agent::{Agent, DeepSeekClient};
 use ferris_agent::tool::registry::ToolRegistry;
 use std::sync::Arc;
 
-let config = AppConfig::load()?;
-let api_key = credential::get_api_key("deepseek")?;
-let client = Arc::new(DeepSeekClient::new(config.deepseek, api_key)?);
-let registry = ToolRegistry::builder()
-    .filesystem()
-    .shell()
-    .git()
-    .build();
+#[tokio::main]
+async fn main() -> Result<()> {
+    let config = AppConfig::load()?;
+    let api_key = credential::get_api_key("deepseek")?;
+    let client = Arc::new(DeepSeekClient::new(config.deepseek, api_key)?);
+    let registry = ToolRegistry::builder()
+        .filesystem()
+        .shell()
+        .git()
+        .build();
 
-let conversation = Conversation::new(client)
-    .with_max_iterations(config.agent.max_iterations)
-    .with_tool_registry(registry);
+    let mut agent = Agent::new(client);
+    agent
+        .with_max_iterations(config.agent.max_iterations)
+        .with_tool_registry(registry)
+        .add_user_message("Summarize the current Git status.".into());
+    let reply = agent.run().await?;
+    println!("{}", reply.content);
+    Ok(())
+}
 ```
 
-`history()` 提供只读消息历史；`reset()` 清除对话轮次并保留初始系统提示词。更改工具注册表时请重新显式加入希望保留的工具。
+`history()` 提供 Agent 的只读消息历史；`reset_history()` 清除对话轮次并保留初始系统提示词。更改工具注册表时请重新显式加入希望保留的工具。
 
 ## 工具与安全
 
@@ -119,8 +125,12 @@ let conversation = Conversation::new(client)
 ## 开发
 
 ```sh
-cargo test
+cargo test --all
+cargo fmt --all -- --check
+cargo clippy --all-targets
 ```
+
+测试无需 API 密钥或外部服务：集成测试使用本地 HTTP 服务验证 API 契约，并使用脚本化后端测试 Agent 工作流。测试分层及新增测试的说明请参阅[测试指南](docs/testing.md)。
 
 主要代码位于 `src/`：
 
@@ -129,6 +139,11 @@ src/
 ├── agent/        # Agent 调度与工具调用循环
 ├── api/          # DeepSeek 客户端、请求、响应和消息类型
 ├── config/       # 配置加载与系统提示词
-├── conversation/ # 多轮会话及选项
 └── tool/          # 工具接口、注册表和内置工具
+tests/
+├── agent_workflows.rs # Agent 工作流测试
+├── api_contract.rs    # 本地 HTTP API 契约测试
+└── support/           # 测试专用共享辅助代码
+docs/
+└── testing.md         # 测试指南与约定
 ```
