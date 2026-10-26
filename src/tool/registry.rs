@@ -123,7 +123,21 @@ impl ToolRegistryBuilder {
     }
 
     pub fn git(mut self) -> Self {
-        self.registry.register(git::status::GitStatusTool);
+        use git::commands::{GitCommand, GitCommandTool};
+        for command in [
+            GitCommand::Status,
+            GitCommand::Diff,
+            GitCommand::Log,
+            GitCommand::Add,
+            GitCommand::Commit,
+            GitCommand::Branch,
+            GitCommand::Switch,
+            GitCommand::Restore,
+            GitCommand::Show,
+            GitCommand::Stash,
+        ] {
+            self.registry.register(GitCommandTool::new(command));
+        }
         self
     }
 
@@ -165,6 +179,15 @@ mod tests {
         assert!(names.contains(&"write_file"));
         assert!(names.contains(&"bash"));
         assert!(names.contains(&"git_status"));
+        assert!(names.contains(&"git_diff"));
+        assert!(names.contains(&"git_log"));
+        assert!(names.contains(&"git_add"));
+        assert!(names.contains(&"git_commit"));
+        assert!(names.contains(&"git_branch"));
+        assert!(names.contains(&"git_switch"));
+        assert!(names.contains(&"git_restore"));
+        assert!(names.contains(&"git_show"));
+        assert!(names.contains(&"git_stash"));
     }
 
     #[tokio::test]
