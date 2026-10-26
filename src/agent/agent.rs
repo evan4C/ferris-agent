@@ -55,7 +55,7 @@ impl Agent {
             registry: ToolRegistry::builder().filesystem().git().build(),
             context: ToolContext::new(working_dir, std::env::vars().collect::<HashMap<_, _>>()),
             options: CliOptions::default(),
-            max_iterations: 10,
+            max_iterations: 255,
         }
     }
 

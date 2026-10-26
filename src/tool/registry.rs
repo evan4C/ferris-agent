@@ -123,9 +123,9 @@ impl ToolRegistryBuilder {
     }
 
     pub fn git(mut self) -> Self {
-        self.registry.register(git::status::GitStatusTool);
         use git::commands::{GitCommand, GitCommandTool};
         for command in [
+            GitCommand::Status,
             GitCommand::Diff,
             GitCommand::Log,
             GitCommand::Add,

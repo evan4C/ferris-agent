@@ -9,6 +9,7 @@ use crate::tool::{Tool, ToolContext, ToolMetadata, ToolResult};
 
 #[derive(Clone, Copy)]
 pub enum GitCommand {
+    Status,
     Diff,
     Log,
     Add,
@@ -106,6 +107,13 @@ fn default_stash_action() -> String {
 impl Tool for GitCommandTool {
     fn metadata(&self) -> ToolMetadata {
         let (name, description, schema) = match self.command {
+            GitCommand::Status => (
+                "git_status",
+                "Show the workspace git status.",
+                serde_json::json!({
+                    "type": "object", "properties": {}, "additionalProperties": false
+                }),
+            ),
             GitCommand::Diff => (
                 "git_diff",
                 "Show changes in the working tree or index.",
@@ -199,6 +207,9 @@ impl Tool for GitCommandTool {
     async fn execute(&self, ctx: &ToolContext, args: Value) -> Result<ToolResult> {
         let mut git_args: Vec<String> = Vec::new();
         match self.command {
+            GitCommand::Status => {
+                return run_git(ctx, &["status".into(), "--short".into(), "--branch".into()]).await;
+            }
             GitCommand::Diff => {
                 let args: DiffArgs = serde_json::from_value(args)?;
                 git_args.push("diff".into());
@@ -335,7 +346,6 @@ fn ensure_nonempty(value: &str, field: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tool::git::status::GitStatusTool;
     use std::collections::HashMap;
     use std::process::Command as StdCommand;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -364,7 +374,10 @@ mod tests {
             .unwrap();
         assert!(!result.is_error, "{}", result.content);
 
-        let status = GitStatusTool.execute(&context, Value::Null).await.unwrap();
+        let status = GitCommandTool::new(GitCommand::Status)
+            .execute(&context, Value::Null)
+            .await
+            .unwrap();
         assert!(
             status.content.contains("A  -draft.txt"),
             "{}",
